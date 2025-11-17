@@ -1,0 +1,16 @@
+/*
+ * File: sites.txt
+ * Project: data
+ * File Created: Monday, 17th November 2025 9:17:38 AM
+ * Author: baaba-midnight
+ * Email: baaba.amosah@gmail.com
+ * Version: 1.0
+ * Brief: <<brief>>
+ * -----
+ * Last Modified: Monday, 17th November 2025 9:17:52 AM
+ * Modified By: baaba-midnight
+ * -----
+ * Copyright ©2025 baaba-midnight
+ */
+
+CASE FILE - https://ghanalawhub.com/summary-transparency-international-ors-v-republic-of-ghana-the-agyapa-case/
