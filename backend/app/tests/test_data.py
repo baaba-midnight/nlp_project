@@ -7,7 +7,7 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: <<brief>>
 -----
-Last Modified: Tuesday, 18th November 2025 9:14:43 PM
+Last Modified: Saturday, 22nd November 2025 1:09:05 PM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
@@ -53,7 +53,7 @@ with open(os.path.join(ROOT, "long_judgment.txt"), "w", encoding="utf-8") as f:
 ocr_sim = (
     "Plaintiff v. Defendant\n\n"
     "¶ 1. The above-named parties appeared before the Court on 01/02/2010.\n"
-    "¶ 2. The document contains OCR errors: th1s, examp1e, li-\n"
+    "¶ 2. The document contains OCR errors: th1s, example, li-\n"
     "ne broken words and random ß characters.\n\n"
     "The Court finds as follows..."
 )
