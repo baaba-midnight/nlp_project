@@ -7,13 +7,13 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: <<brief>>
 -----
-Last Modified: Friday, 21st November 2025 11:18:51 AM
+Last Modified: Saturday, 22nd November 2025 4:01:23 PM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
 """
 
-from app.services.ingest import Ingest
+from backend.app.services.ingestor import Ingest
 from app.services.ingestion import Document as AppDocument
 from langchain_community.vectorstores import FAISS as FAISSClass
 
