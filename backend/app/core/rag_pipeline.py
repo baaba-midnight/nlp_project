@@ -97,11 +97,18 @@ Question: {question}
         2. Inject into prompt
         3. Generate answer with Llama 2
         """
-        chunks = self._retrieve_chunks(question)
-        context = "\n\n".join(chunks)
-        prompt = self.prompt_template.format(context=context, question=question)
-        answer = self.llm(prompt)
-        return {
-            "answer": answer,
-            "sources": chunks[:self.top_k]
-        }
+        try:
+            chunks = self._retrieve_chunks(question)
+            context = "\n\n".join(chunks)
+            prompt = self.prompt_template.format(context=context, question=question)
+            
+            # Generate answer
+            answer = self.llm.invoke(prompt)
+            
+            return {
+                "answer": answer,
+                "sources": chunks[:self.top_k]
+            }
+        except Exception as e:
+            logger.error(f"Error in ask method: {e}")
+            raise

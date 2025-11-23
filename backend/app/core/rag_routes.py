@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from backend.app.core.rag_pipeline import RAGPipeline
-from backend.app.services.ingestion import Document as AppDocument
+from backend.app.services.ingestor import Document as AppDocument
 
 router = APIRouter()
 rag_pipeline = RAGPipeline(use_faiss=True)  # or False for Supabase
