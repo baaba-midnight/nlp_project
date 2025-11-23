@@ -14,9 +14,11 @@ Copyright ©2025 baaba-midnight
 """
 
 import fastapi
-
+from app.api.rag_routes import router as rag_router
 app = fastapi.FastAPI()
 
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
+
+app.include_router(rag_router, prefix="/rag")
