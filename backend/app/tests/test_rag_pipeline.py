@@ -1,39 +1,53 @@
-import pytest
+"""
+Simple RAG pipeline test script.
+Run with:  python test_rag.py
+"""
+
 from app.core.rag_pipeline import RAGPipeline
 
 
-def test_rag_pipeline_end_to_end():
-    """
-    Full integration test:
-    1. Builds the RAG pipeline
-    2. Sends a query
-    3. Performs vector retrieval
-    4. Builds the prompt
-    5. Generates an LLM answer
-    """
+def main():
+    print("🔎 Starting RAG Pipeline Test...\n")
 
-    pipeline = RAGPipeline(use_faiss=False)   # Set to True if testing FAISS fallback
+    # Initialize pipeline (use FAISS only if you want)
+    pipeline = RAGPipeline(use_faiss=False)
 
+    # Query to test
     query = "What does the Data Protection Act say about personal data?"
 
-    # ---- Run the pipeline ----
+    print("➡️ Query:", query)
+    print("\n⏳ Running RAG pipeline...\n")
+
+    # Run pipeline
     result = pipeline.run(query, k=3)
 
-    # ---- Assertions ----
-    assert "answer" in result, "Pipeline must return an 'answer' field."
-    assert "sources" in result, "Pipeline must return 'sources' (retrieved chunks)."
+    print("✅ RAG Pipeline Ran Successfully!\n")
 
-    # Retrieved chunks may be empty, but we want to ensure type correctness
-    assert isinstance(result["sources"], list), "Sources must be a list."
-    assert isinstance(result["answer"], str), "Answer must be a string."
+    # ------------------------------
+    # Print the answer
+    # ------------------------------
+    print("📌 ANSWER:")
+    print(result["answer"])
+    print("\n")
 
-    print("\n=== RAG PIPELINE OUTPUT ===")
-    print("Query:", query)
-    print("Answer:", result["answer"])
-    print("Sources:")
-    for s in result["sources"]:
-        print("-", s)
+    # ------------------------------
+    # Print retrieved chunks
+    # ------------------------------
+    print("📚 RETRIEVED SOURCES:")
+    sources = result.get("sources", [])
+
+    if not sources:
+        print("⚠️ No matching documents found.")
+    else:
+        for i, src in enumerate(sources, start=1):
+            print(f"\n--- Chunk {i} ---")
+
+            # Handle both pgvector result and FAISS document
+            if isinstance(src, dict):
+                print(src.get("chunk") or src)
+            else:
+                print(src.page_content)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    main()

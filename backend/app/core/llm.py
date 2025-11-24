@@ -6,7 +6,7 @@ import torch
 
 
 class Llama2LLM:
-    def __init__(self, model_name: str = "meta-llama/Llama-2-7b-chat-hf"):
+    def __init__(self, model_name: str = "NousResearch/Llama-2-7b-chat-hf"):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
