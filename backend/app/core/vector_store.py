@@ -8,25 +8,36 @@ from app.db import supabase
 
 class PgVectorStore:
     """
-    Vector search using Supabase pgvector
+    Vector search using Supabase pgvector 
     """
 
     def similarity_search(self, query_embedding: List[float], k: int = 5):
-        # Supabase RPC call
-        response = supabase.rpc(
-            "match_embeddings",
-            {
-                "query_embedding": query_embedding,
-                "match_count": k
-            }
-        ).execute()
+        # Direct SQL query using pgvector <=> operator for similarity
+        sql = """
+            SELECT e.id, e.document_id, e.chunk_index, e.chunk, e.metadata,
+                   d.title AS document_title, d.source AS document_source
+            FROM embeddings e
+            JOIN documents d ON d.id = e.document_id
+            ORDER BY e.embedding <=> $1
+            LIMIT $2
+        """
+        response = supabase.rpc("sql", {"query": sql, "params": [query_embedding, k]}).execute()
 
         if not response.data:
             return []
 
-        # return the actual chunks + metadata
-        return response.data
+        results = []
+        for row in response.data:
+            results.append({
+                "chunk": row.get("chunk"),
+                "chunk_index": row.get("chunk_index"),
+                "metadata": row.get("metadata"),
+                "document_id": row.get("document_id"),
+                "document_title": row.get("document_title"),
+                "document_source": row.get("document_source")
+            })
 
+        return results
 
 class FaissVectorStore:
     """

@@ -7,7 +7,7 @@ from app.core.rag_pipeline import RAGPipeline
 
 
 def main():
-    print("🔎 Starting RAG Pipeline Test...\n")
+    print("Starting RAG Pipeline Test...\n")
 
     # Initialize pipeline (use FAISS only if you want)
     pipeline = RAGPipeline(use_faiss=False)
@@ -15,29 +15,29 @@ def main():
     # Query to test
     query = "What does the Data Protection Act say about personal data?"
 
-    print("➡️ Query:", query)
-    print("\n⏳ Running RAG pipeline...\n")
+    print("Query:", query)
+    print("\n Running RAG pipeline...\n")
 
     # Run pipeline
     result = pipeline.run(query, k=3)
 
-    print("✅ RAG Pipeline Ran Successfully!\n")
+    print("RAG Pipeline Ran Successfully!\n")
 
     # ------------------------------
     # Print the answer
     # ------------------------------
-    print("📌 ANSWER:")
+    print("ANSWER:")
     print(result["answer"])
     print("\n")
 
     # ------------------------------
     # Print retrieved chunks
     # ------------------------------
-    print("📚 RETRIEVED SOURCES:")
+    print("RETRIEVED SOURCES:")
     sources = result.get("sources", [])
 
     if not sources:
-        print("⚠️ No matching documents found.")
+        print("No matching documents found.")
     else:
         for i, src in enumerate(sources, start=1):
             print(f"\n--- Chunk {i} ---")
