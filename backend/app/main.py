@@ -14,8 +14,9 @@ Copyright ©2025 baaba-midnight
 """
 
 from fastapi import FastAPI
-from app.routes import *
 from fastapi.middleware.cors import CORSMiddleware
+
+from .routes import *
 
 app = FastAPI()
 

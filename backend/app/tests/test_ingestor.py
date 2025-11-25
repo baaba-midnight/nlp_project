@@ -7,19 +7,21 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: <<brief>>
 -----
-Last Modified: Saturday, 22nd November 2025 4:01:23 PM
+Last Modified: Tuesday, 25th November 2025 9:36:50 PM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
 """
 
-from backend.app.services.ingestor import Ingest
-from app.services.ingestion import Document as AppDocument
-from langchain_community.vectorstores import FAISS as FAISSClass
-
-import os
 import json
 import logging
+import os
+
+from langchain_community.vectorstores import FAISS as FAISSClass
+from langchain_core.documents import Document
+
+from backend.app.services.ingestor import Ingest
+from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 
 logging.basicConfig(level=logging.INFO)
 
@@ -44,8 +46,18 @@ class DummyEmbedder:
     """Return fixed-dimension zero vectors to avoid real model calls."""
 
     def embed_documents(self, texts):
-        # mimic all-MiniLM-L6-v2 (384 dims)
-        return [[0.0] * 384 for _ in texts]
+        # Return deterministic non-zero vectors derived from sha256 of text.
+        # This avoids external model calls but gives varied embeddings for tests.
+        import hashlib
+
+        dim = 384
+        vectors = []
+        for t in texts:
+            h = hashlib.sha256(t.encode("utf-8")).digest()
+            # expand bytes into floats in [0,1]
+            vec = [float(h[i % len(h)]) / 255.0 for i in range(dim)]
+            vectors.append(vec)
+        return vectors
 
 
 def main():
@@ -56,27 +68,31 @@ def main():
 
     # load a small JSON-backed test doc
     dd = load_json("dict_doc.json")
-    app_doc = AppDocument(
-        source=dd["source"],
-        title=dd["title"],
-        text=dd["text"],
-        metadata=dd.get("metadata", {}),
+    app_doc = Document(
+        page_content=dd["text"],
+        metadata={
+            "source": dd["source"],
+            "title": dd["title"],
+            **dd.get("metadata", {}),
+        },
     )
 
     ingest = Ingest(use_faiss=False, chunk_size=200, chunk_overlap=20)
     # replace real embedder with dummy
-    ingest.embedder = DummyEmbedder()
+    ingest.embedder = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
     res = ingest.ingest_document(app_doc)
     print("DICT_DOC -> status:", res.get("status"), "chunks:", res.get("chunks"))
 
     # also test a long text file
     long_txt = load_text("long_judgment.txt")
-    long_doc = AppDocument(
-        source="local/long_judgment.txt",
-        title="Long Judgment",
-        text=long_txt,
-        metadata={"category": "judgment"},
+    long_doc = Document(
+        page_content=long_txt,
+        metadata={
+            "source": "local/long_judgment.txt",
+            "title": "Long Judgment",
+            "category": "judgment",
+        },
     )
     res2 = ingest.ingest_document(long_doc)
     print("LONG_JUDGMENT -> status:", res2.get("status"), "chunks:", res2.get("chunks"))
