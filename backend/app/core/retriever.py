@@ -9,7 +9,7 @@ from app.core.vector_store import PgVectorStore, FaissVectorStore
 class Retriever:
     def __init__(self, use_faiss=False, faiss_store=None):
         self.use_faiss = use_faiss
-        self.embedder = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
+        self.embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
         if use_faiss:
             self.store = FaissVectorStore(faiss_store)

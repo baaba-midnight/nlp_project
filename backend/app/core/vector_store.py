@@ -2,7 +2,6 @@
 Vector store bridge for pgvector + FAISS
 """
 from typing import List
-import numpy as np
 from app.db import supabase
 
 
@@ -12,16 +11,14 @@ class PgVectorStore:
     """
 
     def similarity_search(self, query_embedding: List[float], k: int = 5):
-        # Direct SQL query using pgvector <=> operator for similarity
-        sql = """
-            SELECT e.id, e.document_id, e.chunk_index, e.chunk, e.metadata,
-                   d.title AS document_title, d.source AS document_source
-            FROM embeddings e
-            JOIN documents d ON d.id = e.document_id
-            ORDER BY e.embedding <=> $1
-            LIMIT $2
-        """
-        response = supabase.rpc("sql", {"query": sql, "params": [query_embedding, k]}).execute()
+        # Call the match_embeddings function via RPC
+        response = supabase.rpc(
+            "match_embeddings",  
+            {
+                "query_embedding": query_embedding,
+                "match_count": k
+            }
+        ).execute()
 
         if not response.data:
             return []
@@ -34,10 +31,12 @@ class PgVectorStore:
                 "metadata": row.get("metadata"),
                 "document_id": row.get("document_id"),
                 "document_title": row.get("document_title"),
-                "document_source": row.get("document_source")
+                "document_source": row.get("document_source"),
+                "similarity": row.get("similarity")
             })
 
         return results
+
 
 class FaissVectorStore:
     """

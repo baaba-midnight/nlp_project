@@ -2,7 +2,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import torch
 
 class Llama2LLM:
-    def __init__(self, model_name: str = "NousResearch/Llama-2-7b-chat-hf"):
+    def __init__(self, model_name: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"):
         self.device = "cpu"
         
         # Load tokenizer
@@ -12,23 +12,22 @@ class Llama2LLM:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         
-        # Configure 4-bit quantization
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_use_double_quant=False,
-            bnb_4bit_quant_type="nf4"
-        )
+        # # Configure 4-bit quantization
+        # bnb_config = BitsAndBytesConfig(
+        #     load_in_4bit=True,
+        #     bnb_4bit_compute_dtype=torch.float16,
+        #     bnb_4bit_use_double_quant=False,
+        #     bnb_4bit_quant_type="nf4"
+        # )
 
         # Load 4-bit quantized model
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            device_map="auto",
-            quantization_config=bnb_config,
-            use_cache=False,
-            trust_remote_code=True,
-            pretraining_tp=1
-        )
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            device_map=None,
+            trust_remote_code=True
+        ).to(self.device)
 
     def generate(self, prompt: str, max_new_tokens: int = 512) -> str:
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
