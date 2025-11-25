@@ -7,20 +7,20 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: <<brief>>
 -----
-Last Modified: Saturday, 22nd November 2025 4:02:32 PM
+Last Modified: Monday, 24th November 2025 7:29:29 PM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
 """
 
 from typing import List, Union, Optional, TypedDict
-from app.db import supabase
+from backend.app.db import supabase
 import logging  # for logging errors and info
 
 # langchain imports
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document as LCDocument
-from langchain_huggingface.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 
 from .ingestion import Document as AppDocument
