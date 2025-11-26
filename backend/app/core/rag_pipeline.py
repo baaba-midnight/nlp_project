@@ -5,8 +5,7 @@ from typing import Dict, List
 from app.core.retriever import Retriever
 from app.core.llm import Llama2LLM
 
-# Optional: token counting library
-# from tiktoken import encoding_for_model
+
 
 class RAGPipeline:
     def __init__(self, use_faiss=False, faiss_store=None, similarity_threshold: float = 0.65):
