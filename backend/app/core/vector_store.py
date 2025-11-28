@@ -1,23 +1,21 @@
 """
 Vector store bridge for pgvector + FAISS
 """
+
 from typing import List
-from app.db import supabase
+
+from ..db import supabase
 
 
 class PgVectorStore:
     """
-    Vector search using Supabase pgvector 
+    Vector search using Supabase pgvector
     """
 
     def similarity_search(self, query_embedding: List[float], k: int = 5):
         # Call the match_embeddings function via RPC
         response = supabase.rpc(
-            "match_embeddings",  
-            {
-                "query_embedding": query_embedding,
-                "match_count": k
-            }
+            "match_embeddings", {"query_embedding": query_embedding, "match_count": k}
         ).execute()
 
         if not response.data:
@@ -32,7 +30,7 @@ class PgVectorStore:
                 "document_id": row.get("document_id"),
                 "document_title": row.get("document_title"),
                 "document_source": row.get("document_source"),
-                "similarity": row.get("similarity")
+                "similarity": row.get("similarity"),
             })
 
         return results

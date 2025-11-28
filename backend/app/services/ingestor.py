@@ -7,7 +7,7 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: <<brief>>
 -----
-Last Modified: Tuesday, 25th November 2025 9:36:27 PM
+Last Modified: Friday, 28th November 2025 1:07:57 PM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
@@ -21,7 +21,7 @@ from langchain_core.documents import Document
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from backend.app.db import supabase
+from ..db import supabase
 
 # setup loggin
 logger = logging.getLogger(__name__)

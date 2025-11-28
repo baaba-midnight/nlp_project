@@ -1,14 +1,16 @@
 """
 Robust RAG Pipeline for Ghana Legal Chatbot
 """
-from typing import Dict, List
-from app.core.retriever import Retriever
-from app.core.llm import Llama2LLM
 
+from typing import Dict, List
+from ..core.retriever import Retriever
+from ..core.llm import Llama2LLM
 
 
 class RAGPipeline:
-    def __init__(self, use_faiss=False, faiss_store=None, similarity_threshold: float = 0.65):
+    def __init__(
+        self, use_faiss=False, faiss_store=None, similarity_threshold: float = 0.65
+    ):
         self.retriever = Retriever(use_faiss=use_faiss, faiss_store=faiss_store)
         self.llm = Llama2LLM()
         self.similarity_threshold = similarity_threshold
@@ -24,7 +26,7 @@ class RAGPipeline:
             sim_raw = c.get("similarity", 0.0)
             similarity = float(sim_raw)
 
-            c["similarity"] = similarity   
+            c["similarity"] = similarity
             cleaned.append(c)
 
         # Now filter correctly
@@ -35,8 +37,9 @@ class RAGPipeline:
 
         return relevant_sorted
 
-
-    def build_prompt(self, query: str, contexts: List[Dict], max_tokens: int = 2000) -> str:
+    def build_prompt(
+        self, query: str, contexts: List[Dict], max_tokens: int = 2000
+    ) -> str:
         """
         Construct the prompt for the LLM.
         Ensures chunks fit within token limits (simplified truncation here).
@@ -50,7 +53,7 @@ class RAGPipeline:
             chunk_tokens = len(chunk_text.split())
             if total_tokens + chunk_tokens > max_tokens:
                 break
-            context_text += f"\nChunk {idx+1}:\n{chunk_text}\n"
+            context_text += f"\nChunk {idx + 1}:\n{chunk_text}\n"
             total_tokens += chunk_tokens
 
         prompt = f"""You are a Ghana Legal Assistant. ONLY answer based on the CONTEXT below.
@@ -71,12 +74,12 @@ FINAL ANSWER:"""
 
     def run(self, query, k):
         # Step 1: Embed + retrieve top K chunks
-        chunks = self.retriever.retrieve(query, k*2) 
+        chunks = self.retriever.retrieve(query, k * 2)
         if not chunks:
             return {
                 "answer": "I couldn't find any relevant documents in the database.",
                 "sources": [],
-                "error": "no_results"
+                "error": "no_results",
             }
 
         # Step 2: Filter by similarity (requires chunks to include similarity score)
@@ -86,7 +89,7 @@ FINAL ANSWER:"""
             return {
                 "answer": f"I don't have information about '{query}' in my database.",
                 "sources": chunks,
-                "error": "irrelevant_context"
+                "error": "irrelevant_context",
             }
 
         # Step 3: Build prompt
@@ -108,15 +111,11 @@ FINAL ANSWER:"""
             "not in the context",
             "cannot find",
             "not provided",
-            "no information"
+            "no information",
         ]
         warning = None
         if any(phrase in answer.lower() for phrase in uncertainty_phrases):
             warning = "llm_uncertain"
 
         # Step 7: Return structured response
-        return {
-            "answer": answer,
-            "sources": filtered_chunks,
-            "warning": warning
-        }
+        return {"answer": answer, "sources": filtered_chunks, "error": warning}

@@ -2,7 +2,7 @@
 Retriever module for RAG pipeline
 """
 from sentence_transformers import SentenceTransformer
-from app.core.vector_store import PgVectorStore, FaissVectorStore
+from .vector_store import PgVectorStore, FaissVectorStore
 
 
 

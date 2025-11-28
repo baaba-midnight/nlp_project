@@ -1,8 +1,9 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
 class Llama2LLM:
     def __init__(self, model_name: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"):
+        # TinyLlama/TinyLlama-1.1B-Chat-v1.0
         self.device = "cpu"
         
         # Load tokenizer
