@@ -4,8 +4,8 @@ Robust RAG Pipeline for Ghana Legal Chatbot
 
 from typing import Dict, List, Tuple, Optional
 import numpy as np
-from app.core.retriever import DenseRetriever
-from app.core.llm import Llama2LLM
+from ..core.retriever import DenseRetriever
+from ..core.llm import Llama2LLM
 
 
 class RAGPipeline:
