@@ -1,8 +1,10 @@
 """
 Vector store bridge for pgvector + FAISS
 """
+
 from typing import List, Dict
-from app.db import supabase
+
+from ..db import supabase
 
 
 class PgVectorStore:
