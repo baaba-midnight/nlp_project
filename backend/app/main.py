@@ -5,29 +5,21 @@ File Created: Sunday, 16th November 2025 1:14:16 AM
 Author: baaba-midnight
 Email: baaba.amosah@gmail.com
 Version: 1.0
-Brief: <<brief>>
+Brief: FastAPI application entrypoint and router registration.
 -----
-Last Modified: Monday, 24th November 2025 7:25:45 PM
+Last Modified: Friday, 28th November 2025 11:09:51 AM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
 """
 
-import fastapi
-from app.api.rag_routes import router as rag_router
-app = fastapi.FastAPI()
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-app.include_router(rag_router, prefix="/rag")
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import *
+from .routes import conversations, rag_ask, upload
 
 app = FastAPI()
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,4 +29,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router()
+# RAG ask endpoint (mounted under /api -> results in /api/rag/ask)
+app.include_router(rag_ask.router, prefix="/api")
+
+# Upload endpoint(s) under /api (e.g. POST /api/upload)
+app.include_router(upload.router, prefix="/api")
+
+# Conversations router has its own prefix (/conversations)
+app.include_router(conversations.router)
