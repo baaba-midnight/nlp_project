@@ -1,7 +1,6 @@
 """
-Vector store bridge for pgvector + FAISS
+Vector store bridge for pgvector
 """
-from typing import List, Dict
 from app.db import supabase
 
 
@@ -14,10 +13,15 @@ class PgVectorStore:
     def __init__(self):
         self.supabase = supabase
 
-    def similarity_search(self, query_embedding: List[float], k: int = 5) -> List[Dict]:
+    def similarity_search(self, query_embedding, k, similarity_threshold):
         """
         Search using cosine similarity in embedding space.
-        Implements dense retrieval as described in Section 14.2.
+        Args:
+            query_embedding: Embedding vector of the query
+            k: Number of top similar passages to retrieve
+            similarity_threshold: Minimum similarity score to consider relevant
+        Returns:
+            List of dicts with chunk, metadata, similarity, and document info
         """
         if not query_embedding:
             print("Empty query embedding provided to vector store.")
@@ -46,6 +50,9 @@ class PgVectorStore:
             # Ensure similarity is float
             similarity = row.get("similarity", 0.0)
             similarity = float(similarity)
+            # Apply similarity threshold
+            if similarity < similarity_threshold:
+                continue
                 
             results.append({
                 "chunk": row.get("chunk", ""),
@@ -57,14 +64,3 @@ class PgVectorStore:
                 "similarity": similarity
             })
         return results
-
-
-class FaissVectorStore:
-    """Fallback FAISS vector store for approximate nearest neighbor search"""
-    
-    def __init__(self, faiss_store):
-        self.faiss = faiss_store
-        
-    def similarity_search(self, query_embedding: List[float], k: int = 5) -> List[Dict]:
-        """Approximate nearest neighbor search using FAISS (Section 14.2)"""
-        return self.faiss_similarity_search_by_vector(query_embedding, k)
