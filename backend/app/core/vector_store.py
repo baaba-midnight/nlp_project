@@ -3,7 +3,6 @@ Vector store bridge for pgvector + FAISS
 """
 
 from typing import List, Dict
-
 from ..db import supabase
 
 
