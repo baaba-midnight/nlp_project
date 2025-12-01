@@ -7,7 +7,7 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: <<brief>>
 -----
-Last Modified: Friday, 28th November 2025 1:31:04 PM
+Last Modified: Monday, 1st December 2025 2:52:36 PM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
@@ -31,4 +31,5 @@ class SourceItem(BaseModel):
 class PromptOut(BaseModel):
     answer: str
     sources: List[SourceItem]
+    confidence: Optional[float]
     error: Optional[str]

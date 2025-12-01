@@ -14,68 +14,53 @@ Copyright ©2025 baaba-midnight
 """
 
 from typing import List
-from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..models.user import UserCreate, UserLogin
 from ..models.conversations import ConversationOut
 from ..db import supabase
 
-router = APIRouter(prefix="/users", tags=["users"])
-
 
 class TokenPayload(BaseModel):
     access_token: str
 
 
-@router.post("/signup")
 def signup(payload: UserCreate):
     """Create a user in Supabase Auth (sign up).
 
     If the Supabase client in this environment has the service role key, this will
     attempt an admin create; otherwise it will call the regular sign_up flow.
     """
-    try:
-        # try admin create_user (service role)
-        admin = getattr(supabase.auth, "admin", None)
-        if admin and hasattr(admin, "create_user"):
-            user = admin.create_user({
-                "email": payload.email,
-                "password": payload.password,
-                "email_confirm": True,
-            })
-            return {"status": "ok", "user": user}
+    # try admin create_user (service role)
+    admin = getattr(supabase.auth, "admin", None)
+    if admin and hasattr(admin, "create_user"):
+        user = admin.create_user({
+            "email": payload.email,
+            "password": payload.password,
+            "email_confirm": True,
+        })
+        return {"status": "ok", "user": user}
 
-        # fallback to public sign_up
-        res = supabase.auth.sign_up({"email": payload.email, "password": payload.password})
-        return {"status": "ok", "data": res}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # fallback to public sign_up
+    res = supabase.auth.sign_up({"email": payload.email, "password": payload.password})
+    return {"status": "ok", "data": res}
 
 
-@router.post("/login")
 def login(payload: UserLogin):
     """Sign in a user (returns session/token)."""
-    try:
-        res = supabase.auth.sign_in({"email": payload.email, "password": payload.password})
-        return {"status": "ok", "data": res}
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    res = supabase.auth.sign_in({"email": payload.email, "password": payload.password})
+    return {"status": "ok", "data": res}
 
 
-@router.get("/{user_id}/conversations", response_model=List[ConversationOut])
 def get_conversations(user_id: str):
     """Return conversations for a given user id."""
-    try:
-        resp = (
-            supabase.table("conversations")
-            .select("*")
-            .eq("user_id", user_id)
-            .order("last_active_at", desc=True)
-            .execute()
-        )
-        if resp.data is None:
-            return []
-        return resp.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    resp = (
+        supabase.table("conversations")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("last_active_at", desc=True)
+        .execute()
+    )
+    if resp.data is None:
+        return []
+    return resp.data

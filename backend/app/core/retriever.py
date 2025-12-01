@@ -2,7 +2,7 @@
 Retriever module for RAG pipeline
 """
 from sentence_transformers import SentenceTransformer
-from .vector_store import PgVectorStore, FaissVectorStore
+from .vector_store import PgVectorStore
 from sentence_transformers import SentenceTransformer
    
 class DenseRetriever:

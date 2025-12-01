@@ -25,7 +25,7 @@ class Llama2LLM:
         self.tokenizer = AutoTokenizer.from_pretrained(language_model)
         
         # Load model
-        self.model = AutoModelForCausalLM.from_pretrained(language_model, torch_dtype=dtype,low_cpu_mem_usage=True,device_map=None,trust_remote_code=True).to(self.device)
+        self.model = AutoModelForCausalLM.from_pretrained(language_model, dtype=dtype,low_cpu_mem_usage=True,device_map=None,trust_remote_code=True).to(self.device)
         
         self.model.eval()
     
