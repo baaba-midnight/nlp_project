@@ -24,24 +24,28 @@ class Llama2LLM:
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(language_model)
         
-        # Load model
-        self.model = AutoModelForCausalLM.from_pretrained(language_model, dtype=dtype,low_cpu_mem_usage=True,device_map=None,trust_remote_code=True).to(self.device)
+        # Set pad_token if it doesn't exist (common issue with Llama)
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
         
-        self.model.eval()
-    
-    def generate(self, prompt, max_new_tokens):
-        """
-        Generate answer using retrieval-augmented generation.
-        Implements conditional generation with context from retrieved passages.
-        
-        Args:
-            prompt: Input prompt with context and question
-            max_new_tokens: Maximum tokens to generate
-            
-        Returns:
-            Generated text answer
-        """
-        # Tokenize input
+        # # Configure 4-bit quantization
+        # bnb_config = BitsAndBytesConfig(
+        #     load_in_4bit=True,
+        #     bnb_4bit_compute_dtype=torch.float16,
+        #     bnb_4bit_use_double_quant=False,
+        #     bnb_4bit_quant_type="nf4"
+        # )
+
+        # Load 4-bit quantized model
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_name=language_model,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            device_map=None,
+            trust_remote_code=True
+        ).to(self.device)
+
+    def generate(self, prompt: str, max_new_tokens: int = 512) -> str:
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
         
         input_length = inputs['input_ids'].shape[1]

@@ -7,7 +7,7 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: User routes: signup, login (via Supabase), and fetch conversations.
 -----
-Last Modified: Thursday, 27th November 2025 7:16:01 PM
+Last Modified: Tuesday, 2nd December 2025 1:07:09 PM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
