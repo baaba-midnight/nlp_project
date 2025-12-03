@@ -2,7 +2,7 @@
 from app.core.rag_pipeline import RAGPipeline
 
 
-COLAB_URL = "https://1868f504a1ef.ngrok-free.app/"
+COLAB_URL = "https://miquel-nonintersecting-pachydermatously.ngrok-free.dev/"
 
 pipeline = RAGPipeline(
     similarity_threshold=0.5,
