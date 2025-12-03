@@ -1,5 +1,6 @@
 """
 Robust RAG Pipeline for Ghana Legal Chatbot
+Now supports Google Colab API!
 """
 import numpy as np
 from ..core.retriever import DenseRetriever
@@ -13,7 +14,8 @@ class RAGPipeline:
     2. Reader/Generator: LLM generates answer conditioned on retrieved passages
     """
     
-    def __init__(self, similarity_threshold, embedder_model, language_model):
+    def __init__(self, similarity_threshold, embedder_model, language_model, 
+                 use_colab_api=False, colab_url=None):
         """
         Initialize RAG pipeline with retriever and generator.
         
@@ -21,11 +23,22 @@ class RAGPipeline:
             similarity_threshold: Minimum similarity for passage relevance
             embedder_model: Model name for sentence embeddings
             language_model: Model name for LLM generation
+            use_hf_api: If True, use HuggingFace Inference API
+            hf_token: Your HuggingFace token (required if use_hf_api=True)
+            use_colab_api: If True, use Google Colab API (recommended!)
+            colab_url: Your Colab ngrok URL (required if use_colab_api=True)
+                      Example: "https://xxxx-xx-xx-xx-xx.ngrok.io"
         """
         self.similarity_threshold = similarity_threshold
         self.embedder_model = embedder_model
         self.retriever = DenseRetriever(embedder_model, similarity_threshold)
-        self.llm = Llama2LLM(language_model)
+        
+        # Initialize LLM (local, HF API, or Colab API)
+        self.llm = Llama2LLM(
+            language_model,
+            use_colab_api=use_colab_api,
+            colab_url=colab_url
+        )
 
    
     def build_rag_prompt(self, query, passages, max_input_length):
@@ -42,14 +55,14 @@ class RAGPipeline:
         # Build the template without passages first
         template = f"""You are a knowledgeable Ghana Legal Assistant. Your task is to answer questions accurately based ONLY on the provided legal documents.
 
-    RETRIEVED LEGAL PASSAGES:
-    {{passages}}
+RETRIEVED LEGAL PASSAGES:
+{{passages}}
 
-    Based on these texts, answer the question below.
+Based on these texts, answer the question below.
 
-    QUESTION: {query}
+QUESTION: {query}
 
-    ANSWER:"""
+ANSWER:"""
         
         # Count tokens for everything EXCEPT passages
         template_without_passages = template.replace("{passages}", "")
@@ -81,21 +94,19 @@ class RAGPipeline:
         prompt = template.replace("{passages}", context_text)
         
         return prompt
+    
     def evaluate_answer_quality(self, has_chunks):
         """
         Detect if the LLM is uncertain or hallucinating.
-        Addresses the calibration problem discussed in Section 14.1 intro.
         
         Args:
-            has_chunks: Whether retrieved chunks were used (True) or LLM-only fallback (False)
+            has_chunks: Whether retrieved chunks were used
         Returns:
             confidence: Float confidence score between 0 and 1
         """
-        # Set confidence based on whether chunks were used
         if has_chunks:
             confidence = 1.0
         else:
-            # LLM-only fallback: lower confidence
             confidence = 0.5
         
         return confidence
@@ -103,10 +114,6 @@ class RAGPipeline:
     def run(self, query, k, max_input_length, max_new_tokens):
         """
         Execute complete RAG pipeline: retrieve then generate.
-        
-        Implements the two-stage retriever/reader architecture from Section 14.3:
-        1. Retriever: Dense passage retrieval to get top-k relevant passages
-        2. Reader: RAG generation conditioned on retrieved passages
         
         Args:
             query: User's question
@@ -137,12 +144,11 @@ class RAGPipeline:
             }
         
         # Stage 1: RETRIEVAL
-        # Retrieve passages with similarity threshold filtering
         passages = self.retriever.retrieve(query, k)
         
         if not passages:
             print('Falling back on LLM-only response due to no retrieved passages.')
-            fallback_prompt= f"""You are a knowledgeable Ghana Legal Assistant. 
+            fallback_prompt = f"""You are a knowledgeable Ghana Legal Assistant. 
 No specific legal documents were found for this query, but please provide a helpful general answer based on your knowledge of Ghana law.
 
 QUESTION: {query}
@@ -164,7 +170,6 @@ ANSWER:"""
         
         raw_answer = self.llm.generate(rag_prompt, max_new_tokens)
         has_chunks = True
-        # Evaluate answer quality
         confidence = self.evaluate_answer_quality(has_chunks)
         
         # Prepare response
