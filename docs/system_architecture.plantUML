@@ -1,0 +1,50 @@
+@startuml System_Architecture
+title System Architecture for Ghana Gov Chatbot
+
+!define FRONTEND #E0F7FA
+!define BACKEND #E8F5E9
+!define DATA #FFF3E0
+!define MODEL #F3E5F5
+
+skinparam rectangle {
+  BorderColor black
+  RoundCorner 12
+  FontSize 12
+}
+
+rectangle "Streamlit Frontend\n(Chat Interface + Uploads)" as FE FRONTEND {
+}
+
+rectangle "Backend (Python Functions)" as BE BACKEND {
+  rectangle "Document Processing Pipeline\n- PDF Text Extraction\n- Cleaning\n- Chunking\n- Embedding\n- Metadata Assignment" as PIPE
+  rectangle "RAG Engine\n- Retrieval\n- Ranking\n- Prompt Assembly\n- LLM Call" as RAG
+  rectangle "SFT Model\n(Fine-tuned for Ghana Gov domain)" as SFT
+  rectangle "Conversation Manager\n(Session & History)" as CONVO
+}
+
+rectangle "Data Layer (Supabase)" as DL DATA {
+  rectangle "Vector Database\n(Embeddings + Metadata)" as VDB
+  rectangle "Document Store\n(PDF sources, text)" as DOCS
+}
+
+rectangle "LLM Layer" as LLM MODEL {
+  rectangle "Base Model\n(Used in RAG)" as BASE
+  rectangle "Fine-Tuned Model\n(SFT)" as FT
+}
+
+FE --> PIPE : File Uploads
+PIPE --> VDB : Store embeddings
+PIPE --> DOCS : Store metadata & content
+
+FE --> CONVO : Create/Update chat session
+FE --> RAG : Send user query
+
+RAG --> VDB : Retrieve top-k chunks
+RAG --> BASE : Generate answer w/ context
+
+FE --> SFT : (Optional) Non-RAG answers
+SFT --> FT : Use fine-tuned model
+
+BE -left-> FE : Response + cited sources
+
+@enduml

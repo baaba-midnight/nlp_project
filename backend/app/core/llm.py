@@ -14,7 +14,7 @@ class Llama2LLM:
     def __init__(self, language_model,use_colab_api, colab_url):
         """
         Initialize the language model.
-        
+
         Args:
             language_model: Model name or path
             use_hf_api: If True, use HuggingFace Inference API
@@ -79,7 +79,7 @@ class Llama2LLM:
         Args:
             prompt: Input prompt with context and question
             max_new_tokens: Maximum tokens to generate
-            
+
         Returns:
             Generated text answer
         """
