@@ -1,0 +1,47 @@
+@startuml User_Flow
+title User Flow for Ghana Gov Chatbot
+
+!define FRONTEND #E0F7FA
+!define BACKEND #E8F5E9
+!define DATA #FFF3E0
+!define MODEL #F3E5F5
+
+skinparam rectangle {
+  BorderColor black
+  RoundCorner 12
+  FontSize 12
+}
+
+actor User
+
+rectangle "System" {
+    rectangle "Streamlit Frontend" as FE FRONTEND
+    rectangle "Backend" as BE BACKEND
+    rectangle "RAG Engine" as RAG BACKEND
+    rectangle "Data Layer" as DL DATA
+    rectangle "Vector DB" as VDB DATA
+    rectangle "Base LLM" as BASE MODEL
+    rectangle "Fine-Tuned LLM" as SFT MODEL
+}
+
+User --> FE : Enter query / Upload PDF
+
+FE --> BE : Send request
+
+BE --> BE : Check request type
+BE --> DL : If file upload → process
+
+DL --> VDB : Store embeddings & metadata
+
+BE --> RAG : Query (default path)
+RAG --> VDB : Retrieve relevant chunks
+RAG --> BASE : Generate grounded answer
+BASE --> RAG : Return answer
+RAG --> BE : Return response
+
+BE --> FE : Display final answer\n+ sources
+
+BE --> SFT : Use fine-tuned model\nwhen retrieval score low
+SFT --> FE : Return answer\n(no citations)
+
+@enduml
