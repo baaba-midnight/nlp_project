@@ -7,7 +7,7 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: <<brief>>
 -----
-Last Modified: Tuesday, 2nd December 2025 1:07:46 PM
+Last Modified: Thursday, 4th December 2025 10:41:01 AM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
@@ -15,11 +15,17 @@ Copyright ©2025 baaba-midnight
 
 from ..core.rag_pipeline import RAGPipeline
 from ..models.prompt import PromptCreate, PromptOut
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 pipeline = RAGPipeline(
     similarity_threshold=0.4,
     embedder_model="sentence-transformers/all-MiniLM-L6-v2",
     language_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    use_colab_api=True,
+    colab_url=os.getenv("colab_url")
 )
 
 
