@@ -22,10 +22,10 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 from ..utils.text_cleaner import TextCleaner
-from .hybrid_loader import HybridPDFLoader
-from .ocr_loader import OCRLoaderService
-from .pdf_loader import PDFLoaderService
-from .web_scraper import WebScraperService
+from .loaders.hybrid_loader import HybridPDFLoader
+from .loaders.ocr_loader import OCRLoaderService
+from .loaders.pdf_loader import PDFLoaderService
+from .scrapers.web_scraper import WebScraperService
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

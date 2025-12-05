@@ -2,7 +2,6 @@
 Vector store bridge for pgvector
 """
 
-from typing import List, Dict
 from ..db import supabase
 
 

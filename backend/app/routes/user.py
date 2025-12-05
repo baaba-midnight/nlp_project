@@ -7,24 +7,27 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: User routes: signup, login (via Supabase), and fetch conversations.
 -----
-Last Modified: Tuesday, 2nd December 2025 1:07:09 PM
+Last Modified: Thursday, 4th December 2025 10:57:38 AM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
 """
 
-from typing import List
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from ..models.user import UserCreate, UserLogin
 from ..models.conversations import ConversationOut
 from ..db import supabase
 
+router = APIRouter()
+
 
 class TokenPayload(BaseModel):
     access_token: str
 
 
+@router.post("/user/signup")
 def signup(payload: UserCreate):
     """Create a user in Supabase Auth (sign up).
 
@@ -46,12 +49,14 @@ def signup(payload: UserCreate):
     return {"status": "ok", "data": res}
 
 
+@router.post("/user/login")
 def login(payload: UserLogin):
     """Sign in a user (returns session/token)."""
     res = supabase.auth.sign_in({"email": payload.email, "password": payload.password})
     return {"status": "ok", "data": res}
 
 
+@router.get("/user/{user_id}/conversations")
 def get_conversations(user_id: str):
     """Return conversations for a given user id."""
     resp = (
@@ -61,6 +66,8 @@ def get_conversations(user_id: str):
         .order("last_active_at", desc=True)
         .execute()
     )
-    if resp.data is None:
-        return []
-    return resp.data
+    
+    conversations = []
+    for item in resp.data or []:
+        conversations.append(ConversationOut(**item))
+    return conversations

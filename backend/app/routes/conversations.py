@@ -6,14 +6,19 @@ Endpoints:
 - GET /conversations/{conversation_id}/messages
 """
 
-from typing import Optional
+from typing import Optional, List
+
+from fastapi import APIRouter
 
 from ..db import supabase
-from ..models.conversations import MessageCreate
+from ..models.conversations import MessageCreate, ConversationOut
+
+# Use router prefix so paths are concise and unique
+router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 
-def list_conversations(limit: int = 50, offset: int = 0):
-    """Return a list of conversations (plain function, not an HTTP route)."""
+@router.get("", summary="List conversations")
+def list_conversations(limit: int = 50, offset: int = 0) -> List[ConversationOut]:
     resp = (
         supabase.table("conversations")
         .select("*")
@@ -21,15 +26,21 @@ def list_conversations(limit: int = 50, offset: int = 0):
         .range(offset, offset + limit - 1)
         .execute()
     )
-    return resp.data or []
+
+    conversations = []
+
+    for r in resp.data:
+        conversations.append(ConversationOut(r))
+
+    return conversations
 
 
+@router.post("", summary="Create a conversation")
 def create_conversation(
     title: Optional[str] = None,
     language: Optional[str] = None,
     context_metadata: Optional[dict] = None,
 ):
-    """Create a conversation and return the created record."""
     payload = {
         "title": title,
         "language": language,
@@ -41,8 +52,8 @@ def create_conversation(
     raise RuntimeError("Failed to create conversation")
 
 
+@router.get("/{conversation_id}/messages", summary="Get messages for a conversation")
 def get_messages(conversation_id: str, limit: int = 200, offset: int = 0):
-    """Return messages for a conversation."""
     resp = (
         supabase.table("messages")
         .select("*")
@@ -54,28 +65,23 @@ def get_messages(conversation_id: str, limit: int = 200, offset: int = 0):
     return resp.data or []
 
 
+@router.post(
+    "/{conversation_id}/messages", summary="Create a message in a conversation"
+)
 def create_message(conversation_id: str, payload: MessageCreate):
-    """Insert a message for the conversation and update last_active_at."""
     row = {
-        "id": conversation_id,
-        "title": payload.title,
+        "conversation_id": conversation_id,
         "role": payload.role,
         "content": payload.content,
         "metadata": payload.metadata or {},
         "tokens": payload.tokens,
     }
-    # insert message
+
     resp = supabase.table("messages").insert(row).select("*").execute()
+
     if not resp.data:
         raise RuntimeError("Failed to insert message")
 
-    # update conversation last_active_at to now() (best-effort)
-    try:
-        supabase.table("conversations").update({"last_active_at": "now()"}).eq(
-            "id", conversation_id
-        ).execute()
-    except Exception:
-        # non-fatal if update fails
-        pass
+    supabase.rpc("update_last_active", {"cid": conversation_id}).execute()
 
     return resp.data[0]

@@ -7,11 +7,13 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: <<brief>>
 -----
-Last Modified: Thursday, 4th December 2025 10:41:01 AM
+Last Modified: Thursday, 4th December 2025 10:47:05 AM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
 """
+
+from fastapi import APIRouter
 
 from ..core.rag_pipeline import RAGPipeline
 from ..models.prompt import PromptCreate, PromptOut
@@ -28,7 +30,9 @@ pipeline = RAGPipeline(
     colab_url=os.getenv("colab_url")
 )
 
+router = APIRouter()
 
+@router.post("/rag/ask")
 def rag_ask(payload: PromptCreate) -> PromptOut:
     """Run RAG pipeline for the given prompt and return a PromptOut object.
 

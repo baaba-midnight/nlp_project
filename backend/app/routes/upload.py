@@ -12,85 +12,122 @@ Modified By: baaba-midnight
 Copyright ©2025 baaba-midnight
 """
 
-import asyncio
+# ...existing code...
+import logging
 import os
 import tempfile
 from typing import Any, List
 
-from ..services.hybrid_loader import HybridPDFLoader
-from ..services.ingestor import Ingest
-from ..services.web_scraper import WebScraperService
+from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from pydantic import BaseModel
+
+router = APIRouter()
+logger = logging.getLogger("uvicorn.error")
+logger.setLevel(logging.INFO)
 
 
-def _read_bytes_from_upload(upload: Any) -> bytes:
-    """Attempt to read bytes from a file-like upload object or return bytes if input is bytes.
-
-    Supports:
-    - objects with a synchronous `.read()` method (typical in Streamlit)
-    - objects with an async `.read()` (will be run)
-    - raw bytes
-    - strings (will be encoded)
-    """
-    if isinstance(upload, bytes):
-        return upload
-    if isinstance(upload, str):
-        return upload.encode("utf-8")
-
-    read = getattr(upload, "read", None)
-    if callable(read):
-        # handle async or sync
-        if asyncio.iscoroutinefunction(read):
-            return asyncio.run(read())
-        data = read()
-        # some wrappers (e.g., io.BytesIO) return str/bytes
-        if isinstance(data, str):
-            return data.encode("utf-8")
-        return data
-
-    # fallback: try to get value attribute for Streamlit's UploadedFile
-    getvalue = getattr(upload, "getvalue", None)
-    if callable(getvalue):
-        return getvalue()
-
-    raise ValueError("Cannot read uploaded file-like object")
+class URLPayload(BaseModel):
+    url: str
 
 
-def process_uploads(files: List[Any]):
-    """Process uploaded files or URLs and ingest documents.
+def _lazy_services():
+    try:
+        from ..services.loaders.hybrid_loader import HybridPDFLoader
+        from ..services.ingestor import Ingest
+        from ..services.scrapers.web_scraper import WebScraperService
 
-    `files` may contain file-like objects (with `.read()`), raw bytes, or URL strings.
-    Returns an aggregate result dict similar to the original endpoint.
-    """
-    documents = []
-    for upload in files:
-        # if a plain URL string was provided
-        if isinstance(upload, str) and upload.startswith(("http://", "https://")):
-            scraper = WebScraperService()
-            doc = scraper.scrape_url(upload)
-            if doc:
-                documents.append(doc)
-            continue
+        return HybridPDFLoader, Ingest, WebScraperService
+    except Exception as exc:
+        raise RuntimeError(f"Missing ingestion services: {exc}")
 
-        # read bytes from upload
-        try:
-            data = _read_bytes_from_upload(upload)
-        except Exception:
-            # skip unreadable items
-            continue
 
-        # try to detect PDF by filename or simple magic header
-        filename = getattr(upload, "name", "") or getattr(upload, "filename", "")
-        content_type = getattr(upload, "content_type", None) or getattr(
-            upload, "type", None
+@router.post("/upload/process/url", summary="Submit a URL (JSON)")
+async def process_url(payload: URLPayload) -> dict:
+    logger.info("process_url called; url=%s", payload.url)
+    if not payload.url.startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Provided URL is invalid. It must start with http:// or https://",
         )
 
+    _, Ingest, WebScraperService = _lazy_services()
+
+    scraper = WebScraperService()
+    try:
+        doc = scraper.scrape_url(payload.url)
+    except Exception as e:
+        logger.exception("Error scraping URL: %s", payload.url)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error scraping URL {payload.url}: {e}",
+        )
+
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Scraper returned no document for URL: {payload.url}",
+        )
+
+    ingestor = Ingest(use_faiss=False)
+    try:
+        res = ingestor.ingest_document(doc)
+    except Exception as exc:
+        logger.exception("Ingest failed for URL document")
+        res = {"status": "error", "error": str(exc), "chunks": 0}
+
+    total_chunks = int(res.get("chunks", 0) or 0)
+    errors = [res] if res.get("status") != "ok" else []
+
+    return {
+        "status": "ok" if not errors else "partial",
+        "documents": 1,
+        "chunks": total_chunks,
+        "errors": errors,
+        "results": [res],
+    }
+
+
+@router.post("/upload/process/" \
+"file", summary="Upload file(s) (multipart/form-data)")
+async def process_files(files: List[UploadFile] = File(...)) -> dict:
+    logger.info("process_files called; files_count=%d", len(files) if files else 0)
+    HybridPDFLoader, Ingest, WebScraperService = _lazy_services()
+
+    documents: List[Any] = []
+    for upload in files:
+        if not hasattr(upload, "filename") or not callable(getattr(upload, "read", None)):
+            logger.warning("Skipping invalid upload value: %r", upload)
+            continue
+
+        filename = getattr(upload, "filename", "") or ""
+        content_type = getattr(upload, "content_type", None)
+        logger.info("Processing upload: filename=%s content_type=%s", filename, content_type)
+
+        try:
+            data = await upload.read()
+        except Exception:
+            logger.exception("Failed to read upload: %s", filename)
+            try:
+                await upload.close()
+            except Exception:
+                pass
+            continue
+        finally:
+            try:
+                await upload.close()
+            except Exception:
+                pass
+
         is_pdf = False
-        if content_type == "application/pdf":
-            is_pdf = True
-        elif filename.lower().endswith(".pdf"):
-            is_pdf = True
-        elif data[:4] == b"%PDF":
-            is_pdf = True
+        try:
+            if content_type == "application/pdf":
+                is_pdf = True
+            elif filename.lower().endswith(".pdf"):
+                is_pdf = True
+            elif isinstance(data, (bytes, bytearray)) and data[:4] == b"%PDF":
+                is_pdf = True
+        except Exception:
+            is_pdf = False
 
         if is_pdf:
             tmp_path = None
@@ -100,41 +137,55 @@ def process_uploads(files: List[Any]):
                     tmp_path = tmp.name
 
                 loader = HybridPDFLoader()
-                docs = loader.load_pdf(tmp_path)
+                try:
+                    docs = loader.load_pdf(tmp_path)
+                except Exception:
+                    logger.exception("PDF loader failed for file: %s", filename)
+                    docs = None
                 if docs:
                     documents.extend(docs)
             finally:
-                if tmp_path:
+                if tmp_path and os.path.exists(tmp_path):
                     try:
                         os.unlink(tmp_path)
                     except Exception:
                         pass
         else:
-            # treat as potential URL in file body
+            text = ""
             try:
                 text = data.decode("utf-8").strip()
             except Exception:
                 text = ""
             if text.startswith(("http://", "https://")):
+                logger.info("File body contains URL, scraping: %s", text)
                 scraper = WebScraperService()
-                doc = scraper.scrape_url(text)
+                try:
+                    doc = scraper.scrape_url(text)
+                except Exception:
+                    logger.exception("Failed scraping URL from file body: %s", text)
+                    doc = None
                 if doc:
                     documents.append(doc)
             else:
-                # skip unknown types for now
-                continue
+                logger.info("Skipping non-pdf non-url file: %s", filename)
 
     if not documents:
-        raise ValueError("No valid documents were provided or extracted.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No valid documents were extracted from uploaded files.",
+        )
 
     ingestor = Ingest(use_faiss=False)
     results = []
     for doc in documents:
-        res = ingestor.ingest_document(doc)
+        try:
+            res = ingestor.ingest_document(doc)
+        except Exception as exc:
+            logger.exception("Ingest failed for a document")
+            res = {"status": "error", "error": str(exc), "chunks": 0}
         results.append(res)
 
-    # aggregate results
-    total_chunks = sum(r.get("chunks", 0) for r in results)
+    total_chunks = sum(int(r.get("chunks", 0) or 0) for r in results)
     errors = [r for r in results if r.get("status") != "ok"]
 
     return {
