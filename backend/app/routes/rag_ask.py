@@ -7,7 +7,7 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: <<brief>>
 -----
-Last Modified: Friday, 5th December 2025 7:45:35 PM
+Last Modified: Friday, 5th December 2025 11:40:04 PM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
@@ -41,9 +41,9 @@ pipeline = RAGPipeline(
     colab_url=colab_url
 )
 
-router = APIRouter()
+router = APIRouter(prefix="/rag", tags=["rag"])
 
-@router.post("/rag/ask")
+@router.post("/ask")
 def rag_ask(payload: PromptCreate) -> PromptOut:
     """Run RAG pipeline for the given prompt and return a PromptOut object.
 

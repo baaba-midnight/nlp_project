@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import conversations, rag_ask, upload
+from .routes import conversations, rag_ask, upload, translate
 
 app = FastAPI()
 
@@ -18,3 +18,4 @@ app.add_middleware(
 app.include_router(upload.router)
 app.include_router(conversations.router)
 app.include_router(rag_ask.router)
+app.include_router(translate.router)

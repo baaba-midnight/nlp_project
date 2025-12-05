@@ -21,7 +21,7 @@ from typing import Any, List
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
-router = APIRouter()
+router = APIRouter(prefix="/upload", tags=["upload"])
 logger = logging.getLogger("uvicorn.error")
 logger.setLevel(logging.INFO)
 
@@ -41,7 +41,7 @@ def _lazy_services():
         raise RuntimeError(f"Missing ingestion services: {exc}")
 
 
-@router.post("/upload/process/url", summary="Submit a URL (JSON)")
+@router.post("/process/url", summary="Submit a URL (JSON)")
 async def process_url(payload: URLPayload) -> dict:
     logger.info("process_url called; url=%s", payload.url)
     if not payload.url.startswith(("http://", "https://")):
@@ -87,7 +87,7 @@ async def process_url(payload: URLPayload) -> dict:
     }
 
 
-@router.post("/upload/process/" \
+@router.post("/process/" \
 "file", summary="Upload file(s) (multipart/form-data)")
 async def process_files(files: List[UploadFile] = File(...)) -> dict:
     logger.info("process_files called; files_count=%d", len(files) if files else 0)
