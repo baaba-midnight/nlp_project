@@ -6,82 +6,104 @@ Endpoints:
 - GET /conversations/{conversation_id}/messages
 """
 
-from typing import Optional, List
+import uuid
+from typing import List
 
 from fastapi import APIRouter
+from fastapi.encoders import jsonable_encoder as json_encoder
 
 from ..db import supabase
-from ..models.conversations import MessageCreate, ConversationOut
+from ..models.conversations import ConversationOut, MessageOut
+from ..models.prompt import PromptCreate
+from ..routes.rag_ask import rag_ask
 
-# Use router prefix so paths are concise and unique
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 
-@router.get("", summary="List conversations")
-def list_conversations(limit: int = 50, offset: int = 0) -> List[ConversationOut]:
+@router.post("/create")
+def create_conversation(title: str):
+    """Create a new conversation."""
+    new_id = str(uuid.uuid4())
+    resp = (
+        supabase.table("conversations")
+        .insert({
+            "id": new_id,
+            "title": title,
+            "created_at": "now()",
+            "last_active_at": "now()",
+        })
+        .execute()
+    )
+    return {"conversation_id": new_id}
+
+
+@router.get("/list", response_model=List[ConversationOut])
+def get_conversations(conversation_id: str):
     resp = (
         supabase.table("conversations")
         .select("*")
         .order("last_active_at", desc=True)
-        .range(offset, offset + limit - 1)
         .execute()
     )
 
-    conversations = []
-
-    for r in resp.data:
-        conversations.append(ConversationOut(r))
-
-    return conversations
-
-
-@router.post("", summary="Create a conversation")
-def create_conversation(
-    title: Optional[str] = None,
-    language: Optional[str] = None,
-    context_metadata: Optional[dict] = None,
-):
-    payload = {
-        "title": title,
-        "language": language,
-        "context_metadata": context_metadata or {},
-    }
-    resp = supabase.table("conversations").insert(payload).select("*").execute()
-    if resp.data:
-        return resp.data[0]
-    raise RuntimeError("Failed to create conversation")
+    return [
+        ConversationOut(
+            id=row["id"],
+            title=row["title"],
+            created_at=row["created_at"],
+            last_active_at=row["last_active_at"],
+        )
+        for row in resp.data
+    ]
 
 
-@router.get("/{conversation_id}/messages", summary="Get messages for a conversation")
-def get_messages(conversation_id: str, limit: int = 200, offset: int = 0):
+@router.post("/{conversation_id}/messages/send")
+def send_message(conversation_id: str, prompt: str):
+    """Send a message to the chatbot."""
+
+    # RAG call
+    rag_response = rag_ask(PromptCreate(query=prompt))
+    if rag_response.error:
+        return {"error": rag_response.error}
+
+    message_id = str(uuid.uuid4())    
+
+    # Insert message
+    supabase.table("messages").insert({
+        "id": message_id,
+        "conversation_id": conversation_id,
+        "prompt": prompt,
+        "answer": rag_response.answer,
+        "context_chunks": json_encoder(rag_response.sources),  # list of dicts
+        "created_at": "now()",
+    }).execute()
+
+    # Update last_active_at
+    supabase.table("conversations").update({"last_active_at": "now()"}).eq(
+        "id", conversation_id
+    ).execute()
+
+    return {"message_id": message_id}
+
+
+@router.get("/{conversation_id}/messages/list", response_model=List[MessageOut])
+def get_messages(conversation_id: str, limit: int = 50):
     resp = (
         supabase.table("messages")
         .select("*")
         .eq("conversation_id", conversation_id)
-        .order("created_at", desc=False)
-        .range(offset, offset + limit - 1)
+        .order("created_at")
+        .limit(limit)
         .execute()
     )
-    return resp.data or []
 
-
-@router.post(
-    "/{conversation_id}/messages", summary="Create a message in a conversation"
-)
-def create_message(conversation_id: str, payload: MessageCreate):
-    row = {
-        "conversation_id": conversation_id,
-        "role": payload.role,
-        "content": payload.content,
-        "metadata": payload.metadata or {},
-        "tokens": payload.tokens,
-    }
-
-    resp = supabase.table("messages").insert(row).select("*").execute()
-
-    if not resp.data:
-        raise RuntimeError("Failed to insert message")
-
-    supabase.rpc("update_last_active", {"cid": conversation_id}).execute()
-
-    return resp.data[0]
+    return [
+        MessageOut(
+            id=row["id"],
+            prompt=row["prompt"],
+            answer=row["answer"],
+            context_chunks=row.get("context_chunks"),
+            created_at=row["created_at"],
+        )
+        for row in resp.data
+    ]

@@ -7,7 +7,7 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: <<brief>>
 -----
-Last Modified: Thursday, 4th December 2025 10:47:05 AM
+Last Modified: Friday, 5th December 2025 7:45:35 PM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Get colab_url from environment, default to None
-colab_url = os.getenv("colab_url")
+colab_url = None
 use_colab_api = colab_url is not None and colab_url.strip() != ""
 
 # If colab_url is not set, use local model instead
