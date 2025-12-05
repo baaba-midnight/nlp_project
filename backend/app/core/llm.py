@@ -1,6 +1,6 @@
 """
 Language Model for answer generation in RAG pipeline.
-Now supports Google Colab API!
+Supports Colab API with TinyLlama fallback.
 """
 from transformers import AutoTokenizer
 import torch
@@ -8,83 +8,103 @@ import requests
 
 class Llama2LLM:
     """
-    Language Model for answer generation in RAG pipeline.
-    Supports: Local, HuggingFace API, and Google Colab API
+    Language Model with automatic fallback.
+    Primary: Colab API (fast)
+    Fallback: TinyLlama local (if Colab fails)
     """
-    def __init__(self, language_model,use_colab_api, colab_url):
+    def __init__(self, language_model, use_colab_api=False, colab_url=None, 
+                 fallback_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0"):
         """
-        Initialize the language model.
-
+        Initialize the language model with fallback support.
+        
         Args:
-            language_model: Model name or path
-            use_hf_api: If True, use HuggingFace Inference API
-            hf_token: Your HuggingFace token
-            use_colab_api: If True, use Google Colab API
-            colab_url: Your Colab ngrok URL (e.g., "https://xxxx.ngrok.io")
+            language_model: Primary model name (for Colab API)
+            use_colab_api: If True, use Google Colab API as primary
+            colab_url: Your Colab ngrok URL
+            fallback_model: Local model to use if Colab fails (default: TinyLlama)
         """
         self.language_model = language_model
         self.use_colab_api = use_colab_api
         self.colab_url = colab_url
+        self.fallback_model = fallback_model
+        self.colab_available = False
+        self.local_model = None
+        self.local_tokenizer = None
         
-        # Always load tokenizer (needed for token counting)
         print(f"Loading tokenizer: {language_model}")
         self.tokenizer = AutoTokenizer.from_pretrained(language_model)
         
         if use_colab_api:
-            # Use Google Colab API
             if not colab_url:
                 raise ValueError("Must provide colab_url when use_colab_api=True")
             
-            print(f"Using Google Colab API: {colab_url}")
+            print(f"Primary: Colab API at {colab_url}")
             
-            # Test connection
             try:
                 response = requests.get(f"{colab_url}/health", timeout=10)
                 if response.status_code == 200:
-                    print(" Connected to Colab API successfully!")
-                    print(f"   Model: {response.json().get('model', 'Unknown')}")
+                    self.colab_available = True
+                    print("Colab API connected successfully")
+                    print(f"Model: {response.json().get('model', 'Unknown')}")
                 else:
                     print(f"Colab API returned status {response.status_code}")
+                    print("Will load local fallback model")
             except Exception as e:
-                print(f"Could not connect to Colab API: {e}")
+                print(f"Cannot connect to Colab API: {e}")
+                print("Will load local fallback model")
             
-            self.device = "colab_api"
+            if not self.colab_available:
+                self._load_fallback_model()
             
+            self.device = "colab_api" if self.colab_available else "local_fallback"
         else:
-            # Load model locally
-            print(f"Loading model locally: {language_model}")
-            
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            dtype = torch.float16 if self.device == "cuda" else torch.float32
-            
-            if self.device == "cpu":
-                print("Running on CPU")
-            
-            from transformers import AutoModelForCausalLM
-            self.model = AutoModelForCausalLM.from_pretrained(
-                language_model,
-                torch_dtype=dtype,
-                low_cpu_mem_usage=True,
-                device_map=None,
-                trust_remote_code=True
-            ).to(self.device)
-            
-            self.model.eval()
-            print(f"Model loaded on: {self.device}")
+            print("Loading local model directly (no Colab API)")
+            self._load_fallback_model()
+            self.device = "local"
+    
+    def _load_fallback_model(self):
+        """Load TinyLlama as fallback model"""
+        print(f"Loading FALLBACK model: {self.fallback_model}")
+        
+        from transformers import AutoModelForCausalLM
+        
+        print("Loading fallback tokenizer")
+        self.local_tokenizer = AutoTokenizer.from_pretrained(self.fallback_model)
+        
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        dtype = torch.float16 if device == "cuda" else torch.float32
+        
+        if device == "cpu":
+            print("WARNING: Running on CPU - will be slower than Colab")
+        else:
+            print(f"Running on GPU: {torch.cuda.get_device_name(0)}")
+        
+        print("Loading model weights")
+        self.local_model = AutoModelForCausalLM.from_pretrained(
+            self.fallback_model,
+            torch_dtype=dtype,
+            low_cpu_mem_usage=True,
+            device_map=None,
+            trust_remote_code=True
+        ).to(device)
+        
+        self.local_model.eval()
+        print(f"Fallback model loaded on: {device}")
+        self.local_device = device
     
     def generate(self, prompt, max_new_tokens):
         """
-        Generate answer using retrieval-augmented generation.
+        Generate answer with automatic fallback.
+        Tries Colab API first, falls back to local TinyLlama if it fails.
         
         Args:
             prompt: Input prompt with context and question
             max_new_tokens: Maximum tokens to generate
-
+            
         Returns:
             Generated text answer
         """
-        if self.use_colab_api:
-            # Use Google Colab API
+        if self.use_colab_api and self.colab_available:
             try:
                 response = requests.post(
                     f"{self.colab_url}/generate",
@@ -95,44 +115,51 @@ class Llama2LLM:
                         "top_p": 0.85,
                         "repetition_penalty": 1.15
                     },
-                    timeout=120  # 2 minutes timeout
+                    timeout=120
                 )
                 
                 if response.status_code == 200:
                     data = response.json()
                     return data.get("generated_text", "").strip()
                 else:
-                    error_msg = f"Colab API error (status {response.status_code})"
-                    print(f"{error_msg}")
-                    return f"Error: {error_msg}"
+                    print(f"Colab API error (status {response.status_code})")
+                    print("Falling back to local TinyLlama")
                     
             except requests.Timeout:
-                print("Colab API timeout - request took too long")
-                return "Error: Request timeout. The prompt might be too long."
+                print("Colab API timeout")
+                print("Falling back to local TinyLlama")
             except requests.ConnectionError:
-                print("Could not connect to Colab API")
-                return "Error: Could not connect to Colab. Is the notebook still running?"
+                print("Cannot connect to Colab API")
+                print("Falling back to local TinyLlama")
             except Exception as e:
                 print(f"Colab API Error: {str(e)}")
-                return f"Error: {str(e)}"
+                print("Falling back to local TinyLlama")
+            
+            if self.local_model is None:
+                print("Loading fallback model now")
+                self._load_fallback_model()
         
-        else:
-            # Use local model
-            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-            input_length = inputs['input_ids'].shape[1]
-            
-            with torch.no_grad():
-                output = self.model.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
-                    pad_token_id=self.tokenizer.pad_token_id,
-                    temperature=0.3,
-                    do_sample=True,
-                    top_p=0.85,
-                    repetition_penalty=1.15,
-                    no_repeat_ngram_size=3
-                )
-            
-            generated_ids = output[0][input_length:]
-            generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
-            return generated_text.strip()
+        if self.local_model is None:
+            return "Error: No model available (Colab failed and fallback not loaded)"
+        
+        print("Using local TinyLlama fallback")
+        
+        inputs = self.local_tokenizer(prompt, return_tensors="pt").to(self.local_device)
+        input_length = inputs['input_ids'].shape[1]
+        
+        with torch.no_grad():
+            output = self.local_model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                pad_token_id=self.local_tokenizer.pad_token_id,
+                temperature=0.3,
+                do_sample=True,
+                top_p=0.85,
+                repetition_penalty=1.15,
+                no_repeat_ngram_size=3
+            )
+        
+        generated_ids = output[0][input_length:]
+        generated_text = self.local_tokenizer.decode(generated_ids, skip_special_tokens=True)
+        
+        return generated_text.strip()

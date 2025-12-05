@@ -18,7 +18,7 @@ const translations = {
         resetConversation: "Reset conversation",
         switchToTwi: "Switch to Twi",
         switchToEnglish: "Switch to English",
-        errorBackend: "⚠️ Backend server is not running. Please start the backend server:\n\n1. Open a terminal\n2. Navigate to the backend directory\n3. Run: uvicorn app.main:app --reload\n\nThe server should run on ",
+        errorBackend: "Backend server is not running. Please start the backend server:\n\n1. Open a terminal\n2. Navigate to the backend directory\n3. Run: uvicorn app.main:app --reload\n\nThe server should run on ",
         errorGeneric: "Sorry, I encountered an error processing your question.",
         resetConfirm: "Are you sure you want to reset the conversation?",
         chatsTitle: "Chats",
@@ -373,13 +373,14 @@ async function handleUserQuestion(userText) {
         console.log('RAG response received:', response);
         
         const answer = response?.answer || 'No response received';
-        const confidence = response?.confidence;
+        const confidence = response?.has_chunks;
+        console.log('Confidence:', confidence);
         const sources = response?.sources;
 
         // Format response
         let responseText = String(answer);
         if (confidence !== null && confidence !== undefined) {
-            responseText += `\n\n*Confidence: ${confidence.toFixed(2)}`;
+            responseText += `\n\n*Is answer from retrieved chunks: ${confidence}`;
         }
 
         // Remove loading indicator
@@ -870,22 +871,22 @@ function createMessageElement(message, isHTML = false) {
     if (isHTML) {
         p.innerHTML = message.content;
     } else {
-        // Format confidence if present
+        // Format has_chunks if present
         const contentStr = String(message.content || '');
         const lines = contentStr.split('\n');
         const mainContent = lines[0];
-        const confidenceLine = lines.find(line => line.includes('Confidence:'));
+        const hasChunksLine = lines.find(line => line.includes('Is answer from retrieved chunks:'));
 
         if (mainContent) {
             p.textContent = mainContent;
         }
         
-        if (confidenceLine) {
-            const confidenceSpan = document.createElement('span');
-            confidenceSpan.className = 'confidence';
-            confidenceSpan.textContent = confidenceLine;
+        if (hasChunksLine) {
+            const hasChunksSpan = document.createElement('span');
+            hasChunksSpan.className = 'confidence';
+            hasChunksSpan.textContent = hasChunksLine;
             p.appendChild(document.createElement('br'));
-            p.appendChild(confidenceSpan);
+            p.appendChild(hasChunksSpan);
         }
     }
 

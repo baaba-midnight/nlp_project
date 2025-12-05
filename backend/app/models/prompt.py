@@ -16,5 +16,5 @@ class SourceItem(BaseModel):
 class PromptOut(BaseModel):
     answer: str
     sources: List[SourceItem]
-    confidence: Optional[float]
+    has_chunks: Optional[bool]
     error: Optional[str]

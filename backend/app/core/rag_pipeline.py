@@ -24,10 +24,9 @@ class RAGPipeline:
             embedder_model: Model name for sentence embeddings
             language_model: Model name for LLM generation
             use_hf_api: If True, use HuggingFace Inference API
-            hf_token: Your HuggingFace token (required if use_hf_api=True)
+            hf_token: HuggingFace token (required if use_hf_api=True)
             use_colab_api: If True, use Google Colab API (recommended!)
-            colab_url: Your Colab ngrok URL (required if use_colab_api=True)
-                      Example: "https://xxxx-xx-xx-xx-xx.ngrok.io"
+            colab_url: Colab ngrok URL (required if use_colab_api=True)
         """
         self.similarity_threshold = similarity_threshold
         self.embedder_model = embedder_model
@@ -94,22 +93,7 @@ ANSWER:"""
         prompt = template.replace("{passages}", context_text)
         
         return prompt
-    
-    def evaluate_answer_quality(self, has_chunks):
-        """
-        Detect if the LLM is uncertain or hallucinating.
-        
-        Args:
-            has_chunks: Whether retrieved chunks were used
-        Returns:
-            confidence: Float confidence score between 0 and 1
-        """
-        if has_chunks:
-            confidence = 1.0
-        else:
-            confidence = 0.5
-        
-        return confidence
+
     
     def run(self, query, k, max_input_length, max_new_tokens):
         """
@@ -122,13 +106,14 @@ ANSWER:"""
             max_new_tokens: Maximum tokens to generate in answer
             
         Returns:
-            Dict containing answer, sources, confidence, and metadata
+            Dict containing answer, sources, has_chunks, and metadata
         """
         if not query or not query.strip():
             return {
                 "answer": "Please provide a valid question.",
-                "num_sources": [],
-                "confidence": 0.0,
+                "num_sources": 0,
+                "sources": [],
+                "has_chunks":  False,
                 "error": "empty_query",
                 "avg_similarity": 0.0
             }
@@ -137,12 +122,12 @@ ANSWER:"""
             print("Invalid value of k provided to RAG pipeline.")
             return {
                 "answer": "Invalid number of passages requested.",
-                "num_sources": [],
-                "confidence": 0.0,
-                "error": "invalid_k",
+                "num_sources": 0,
+                "sources": [],
+                "has_chunks": False,
+                "error": "no_passages",
                 "avg_similarity": 0.0
             }
-        
         # Stage 1: RETRIEVAL
         passages = self.retriever.retrieve(query, k)
         
@@ -155,12 +140,11 @@ QUESTION: {query}
 
 ANSWER:"""
             raw_answer = self.llm.generate(fallback_prompt, max_new_tokens)
-            has_chunks = False
-            confidence = self.evaluate_answer_quality(has_chunks)
             return {
                 "answer": raw_answer,
-                "num_sources": [],
-                "confidence": confidence,
+                "num_sources": 0,
+                "sources": [],
+                "has_chunks": False,
                 "error": "no_passages",
                 "avg_similarity": 0.0
             }
@@ -169,14 +153,12 @@ ANSWER:"""
         rag_prompt = self.build_rag_prompt(query, passages, max_input_length)
         
         raw_answer = self.llm.generate(rag_prompt, max_new_tokens)
-        has_chunks = True
-        confidence = self.evaluate_answer_quality(has_chunks)
         
         # Prepare response
         response = {
             "answer": raw_answer,
             "sources": passages,
-            "confidence": confidence,
+            "has_chunks": True,
             "num_sources": len(passages),
             "avg_similarity": np.mean([p["similarity"] for p in passages])
         }

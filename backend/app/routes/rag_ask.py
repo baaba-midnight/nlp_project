@@ -24,6 +24,8 @@ load_dotenv()
 
 # Get colab_url from environment, default to None
 colab_url = os.getenv("colab_url")
+print(f"colab_url from env: {colab_url}")   
+# colab_url = os.getenv("colab_url")
 use_colab_api = colab_url is not None and colab_url.strip() != ""
 
 # If colab_url is not set, use local model instead
@@ -34,7 +36,7 @@ if not use_colab_api:
 pipeline = RAGPipeline(
     similarity_threshold=0.4,
     embedder_model="sentence-transformers/all-MiniLM-L6-v2",
-    language_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    language_model="alotanna/llama2-7b-ghana-climate",
     use_colab_api=use_colab_api,
     colab_url=colab_url
 )
@@ -70,6 +72,6 @@ def rag_ask(payload: PromptCreate) -> PromptOut:
     return PromptOut(
         answer=output.get("answer", ""),
         sources=sources,
-        confidence=output.get("confidence"),
+        has_chunks=output.get("has_chunks"),
         error=output.get("error"),
     )

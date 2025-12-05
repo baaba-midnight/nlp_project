@@ -1,5 +1,5 @@
 # test_database.py
-from app.core.rag_pipeline import RAGPipeline
+from ..core.rag_pipeline import RAGPipeline
 
 
 COLAB_URL = "https://miquel-nonintersecting-pachydermatously.ngrok-free.dev/"
@@ -13,12 +13,6 @@ pipeline = RAGPipeline(
 )
 
 test_questions = [
-    "What is Ghana doing about climate change?",
-    "What are Ghana's renewable energy targets?",
-    "What laws protect Ghana's forests?",
-    "How can farmers adapt to climate change in Ghana?",
-    "What are the penalties for illegal mining in Ghana?",
-    "What is the Bank of Ghana's role in the economy?",
     "How does Ghana's Environmental Protection Act work?"
 ]
 
@@ -31,5 +25,5 @@ for question in test_questions:
         max_new_tokens=512
     )
     print(f"A: {result['answer']}")
-    print(f"Confidence: {result['confidence']:.2f} | Sources: {result['num_sources']}")
+    print(f"Confidence: {result['has_chunks']} | Sources: {result['num_sources']}")
     print("-" * 70)
