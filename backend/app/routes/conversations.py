@@ -14,7 +14,7 @@ from fastapi.encoders import jsonable_encoder as json_encoder
 
 from ..db import supabase
 from ..models.conversations import ConversationOut, MessageOut
-from ..models.prompt import PromptCreate
+from ..models.prompt import PromptCreate, PromptOut
 from ..routes.rag_ask import rag_ask
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/conversations", tags=["conversations"])
 def create_conversation(title: str):
     """Create a new conversation."""
     new_id = str(uuid.uuid4())
-    resp = (
+    (
         supabase.table("conversations")
         .insert({
             "id": new_id,
@@ -58,21 +58,21 @@ def get_conversations(conversation_id: str):
 
 
 @router.post("/{conversation_id}/messages/send")
-def send_message(conversation_id: str, prompt: str):
+def send_message(conversation_id: str, payload: PromptCreate) -> PromptOut:
     """Send a message to the chatbot."""
 
     # RAG call
-    rag_response = rag_ask(PromptCreate(query=prompt))
+    rag_response = rag_ask(payload)
     if rag_response.error:
         return {"error": rag_response.error}
 
-    message_id = str(uuid.uuid4())    
+    message_id = str(uuid.uuid4())
 
     # Insert message
     supabase.table("messages").insert({
         "id": message_id,
         "conversation_id": conversation_id,
-        "prompt": prompt,
+        "prompt": payload.query,
         "answer": rag_response.answer,
         "context_chunks": json_encoder(rag_response.sources),  # list of dicts
         "created_at": "now()",
@@ -83,7 +83,7 @@ def send_message(conversation_id: str, prompt: str):
         "id", conversation_id
     ).execute()
 
-    return {"message_id": message_id}
+    return rag_response
 
 
 @router.get("/{conversation_id}/messages/list", response_model=List[MessageOut])
