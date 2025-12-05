@@ -22,12 +22,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Get colab_url from environment, default to None
+colab_url = os.getenv("colab_url")
+use_colab_api = colab_url is not None and colab_url.strip() != ""
+
+# If colab_url is not set, use local model instead
+if not use_colab_api:
+    print("⚠️  No colab_url found in environment. Using local model instead.")
+    print("   To use Colab API, set colab_url in your .env file")
+
 pipeline = RAGPipeline(
     similarity_threshold=0.4,
     embedder_model="sentence-transformers/all-MiniLM-L6-v2",
     language_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    use_colab_api=True,
-    colab_url=os.getenv("colab_url")
+    use_colab_api=use_colab_api,
+    colab_url=colab_url
 )
 
 router = APIRouter()
