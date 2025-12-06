@@ -106,12 +106,10 @@ ANSWER:"""
         Returns:
             Dict containing answer, sources, has_chunks, and metadata
         """
-        # Use model's dynamic limits if not specified
-        # if max_input_length is None:
+        # Use model's dynamic limits 
         max_input_length = self.llm.get_max_input_length()
         print(f"Using model's max input length: {max_input_length}")
         
-        # if max_new_tokens is None:
         max_new_tokens = self.llm.get_max_output_length()
         print(f"Using model's max output length: {max_new_tokens}")
         
