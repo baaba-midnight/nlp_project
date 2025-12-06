@@ -20,7 +20,7 @@ skinparam database {
 
 '  LAYER 1: FRONTEND 
 package "Frontend Layer" FRONTEND {
-  rectangle "Streamlit UI" as UI {
+  rectangle "HTML/CSS UI" as UI {
     component "English Chat\n(with history)" as ENG
     component "Twi Chat\n(no history)" as TWI
   }
@@ -48,9 +48,12 @@ package "Ingestion Pipeline" INGESTION {
 
 '  LAYER 3: DATA 
 package "Data Layer (Supabase)" DATA {
-  database "Documents" as DB_DOCS
-  database "Embeddings" as DB_EMBED
-  database "Conversations\n(English Only)" as DB_CONV
+  database "Supabase Database" as DB {
+    collections "Documents" as DB_DOCS
+    collections "Embeddings" as DB_EMBED
+    collections "Conversations\n(English Only)" as DB_CONV
+    collections "Messages\n(English Only)" as DB_MSG
+  }
 }
 
 '  LAYER 4: BACKEND (RAG) 
@@ -75,29 +78,40 @@ package "LLM Layer" MODEL {
 }
 
 '  DATABASE NOTES 
-note right of DB_DOCS
-  • document_id (PK)
-  • source_url/pdf_name
-  • source_type
-  • full_text
+note bottom of DB_DOCS
+  • id (PK)
+  • source (url/pdf_name)
+  • title
   • metadata
+  • inserted_at
+end note
+
+note bottom of DB_EMBED
+  • id (PK)
+  • document_id (FK)
+  • chunk_index
+  • chunk
+  • metadata
+  • embedding - VECTOR
   • created_at
 end note
 
-note right of DB_EMBED
-  • embedding_id (PK)
-  • document_id (FK)
-  • chunk_text
-  • embedding_vector
-  • chunk_index
+note bottom of DB_CONV
+  • id (PK)
+  • title
+  • created_at
+  • last_active_at
 end note
 
-note left of DB_CONV
-  • message_id
-  • role
-  • content
-  • timestamp
+note bottom of DB_MSG
+  • id (PK)
+  • conversation_id (FK)
+  • prompt (user_query)
+  • answer (bot_response)
+  • context_chunks
+  • created_at
 end note
+
 
 
 '  CONNECTIONS: INGESTION FLOW 
