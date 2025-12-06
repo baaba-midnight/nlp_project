@@ -7,7 +7,7 @@ Email: baaba.amosah@gmail.com
 Version: 1.0
 Brief: <<brief>>
 -----
-Last Modified: Friday, 5th December 2025 11:40:04 PM
+Last Modified: Saturday, 6th December 2025 1:55:46 AM
 Modified By: baaba-midnight
 -----
 Copyright ©2025 baaba-midnight
@@ -50,7 +50,7 @@ def rag_ask(payload: PromptCreate) -> PromptOut:
     This is a plain function (not an HTTP route) so it can be called from Streamlit.
     """
     query = payload.query
-    output = pipeline.run(query=query, k=10, max_input_length=2048, max_new_tokens=1500)
+    output = pipeline.run(query=query, k=10)
 
     # Normalize sources into SourceItem-compatible dicts (chunk, similarity, metadata)
     sources = []

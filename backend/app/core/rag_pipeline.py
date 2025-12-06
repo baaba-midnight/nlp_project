@@ -1,6 +1,6 @@
 """
 Robust RAG Pipeline for Ghana Legal Chatbot
-Now supports Google Colab API!
+Now supports Google Colab API with dynamic token limits!
 """
 import numpy as np
 from ..core.retriever import DenseRetriever
@@ -23,8 +23,6 @@ class RAGPipeline:
             similarity_threshold: Minimum similarity for passage relevance
             embedder_model: Model name for sentence embeddings
             language_model: Model name for LLM generation
-            use_hf_api: If True, use HuggingFace Inference API
-            hf_token: HuggingFace token (required if use_hf_api=True)
             use_colab_api: If True, use Google Colab API (recommended!)
             colab_url: Colab ngrok URL (required if use_colab_api=True)
         """
@@ -32,7 +30,7 @@ class RAGPipeline:
         self.embedder_model = embedder_model
         self.retriever = DenseRetriever(embedder_model, similarity_threshold)
         
-        # Initialize LLM (local, HF API, or Colab API)
+        # Initialize LLM (local or Colab API)
         self.llm = Llama2LLM(
             language_model,
             use_colab_api=use_colab_api,
@@ -95,19 +93,32 @@ ANSWER:"""
         return prompt
 
     
-    def run(self, query, k, max_input_length, max_new_tokens):
+    def run(self, query, k):
         """
         Execute complete RAG pipeline: retrieve then generate.
         
         Args:
             query: User's question
             k: Number of passages to retrieve
-            max_input_length: Maximum tokens for input prompt   
-            max_new_tokens: Maximum tokens to generate in answer
+            max_input_length: Maximum tokens for input prompt (if None, uses model default)
+            max_new_tokens: Maximum tokens to generate in answer (if None, uses model default)
             
         Returns:
             Dict containing answer, sources, has_chunks, and metadata
         """
+        # Use model's dynamic limits if not specified
+        # if max_input_length is None:
+        max_input_length = self.llm.get_max_input_length()
+        print(f"Using model's max input length: {max_input_length}")
+        
+        # if max_new_tokens is None:
+        max_new_tokens = self.llm.get_max_output_length()
+        print(f"Using model's max output length: {max_new_tokens}")
+        
+        # Cap to model's limits
+        max_input_length = min(max_input_length, self.llm.get_max_input_length())
+        max_new_tokens = min(max_new_tokens, self.llm.get_max_output_length())
+        
         if not query or not query.strip():
             return {
                 "answer": "Please provide a valid question.",

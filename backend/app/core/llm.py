@@ -20,7 +20,7 @@ class Llama2LLM:
         Args:
             language_model: Primary model name (for Colab API)
             use_colab_api: If True, use Google Colab API as primary
-            colab_url: Your Colab ngrok URL
+            colab_url: Colab ngrok URL
             fallback_model: Local model to use if Colab fails (default: TinyLlama)
         """
         self.language_model = language_model
@@ -30,6 +30,10 @@ class Llama2LLM:
         self.colab_available = False
         self.local_model = None
         self.local_tokenizer = None
+        
+        # Set token limits based on model type
+        self.max_input_length = 2048  # Default for Colab
+        self.max_output_length = 2048  # Default for Colab
         
         print(f"Loading tokenizer: {language_model}")
         self.tokenizer = AutoTokenizer.from_pretrained(language_model)
@@ -46,6 +50,7 @@ class Llama2LLM:
                     self.colab_available = True
                     print("Colab API connected successfully")
                     print(f"Model: {response.json().get('model', 'Unknown')}")
+                    print(f"Token limits: {self.max_input_length} input / {self.max_output_length} output")
                 else:
                     print(f"Colab API returned status {response.status_code}")
                     print("Will load local fallback model")
@@ -65,6 +70,11 @@ class Llama2LLM:
     def _load_fallback_model(self):
         """Load TinyLlama as fallback model"""
         print(f"Loading FALLBACK model: {self.fallback_model}")
+        
+        # Update token limits for TinyLlama
+        self.max_input_length = 1024
+        self.max_output_length = 1024
+        print(f"Token limits adjusted for fallback: {self.max_input_length} input / {self.max_output_length} output")
         
         from transformers import AutoModelForCausalLM
         
@@ -92,6 +102,14 @@ class Llama2LLM:
         print(f"Fallback model loaded on: {device}")
         self.local_device = device
     
+    def get_max_input_length(self):
+        """Get the maximum input length for the current model"""
+        return self.max_input_length
+    
+    def get_max_output_length(self):
+        """Get the maximum output length for the current model"""
+        return self.max_output_length
+    
     def generate(self, prompt, max_new_tokens):
         """
         Generate answer with automatic fallback.
@@ -104,6 +122,9 @@ class Llama2LLM:
         Returns:
             Generated text answer
         """
+        # Cap max_new_tokens to model's limit
+        max_new_tokens = min(max_new_tokens, self.max_output_length)
+        
         if self.use_colab_api and self.colab_available:
             try:
                 response = requests.post(
@@ -138,11 +159,14 @@ class Llama2LLM:
             if self.local_model is None:
                 print("Loading fallback model now")
                 self._load_fallback_model()
+                # Re-cap max_new_tokens after loading fallback
+                max_new_tokens = min(max_new_tokens, self.max_output_length)
         
         if self.local_model is None:
             return "Error: No model available (Colab failed and fallback not loaded)"
         
         print("Using local TinyLlama fallback")
+        print(f"Max new tokens: {max_new_tokens}")
         
         inputs = self.local_tokenizer(prompt, return_tensors="pt").to(self.local_device)
         input_length = inputs['input_ids'].shape[1]
