@@ -9,7 +9,7 @@ Endpoints:
 import uuid
 from typing import List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.encoders import jsonable_encoder as json_encoder
 
 from ..db import supabase
@@ -63,8 +63,9 @@ def send_message(conversation_id: str, payload: PromptCreate) -> PromptOut:
 
     # RAG call
     rag_response = rag_ask(payload)
-    if rag_response.error:
-        return {"error": rag_response.error}
+     # If rag_ask produced an error, raise HTTPException so response_model validation won't fail
+    if getattr(rag_response, "error", None):
+        raise HTTPException(status_code=400, detail=str(rag_response.error))
 
     message_id = str(uuid.uuid4())
 

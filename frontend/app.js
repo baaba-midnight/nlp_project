@@ -102,12 +102,12 @@ const newChatButton = document.getElementById('new-chat-button');
 const chatListTitle = document.getElementById('chat-list-title');
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    initializeApp();
+document.addEventListener('DOMContentLoaded', async () => {
+    await initializeApp();
     setupEventListeners();
 });
 
-function initializeApp() {
+async function initializeApp() {
     // Load language preference from localStorage
     const savedLanguage = localStorage.getItem('language');
     if (savedLanguage === 'twi' || savedLanguage === 'en') {
@@ -120,10 +120,10 @@ function initializeApp() {
     // Initialize based on language mode
     if (state.language === 'en') {
         // English mode: Multi-chat
-        initializeMultiChat();
+        await initializeMultiChat();
     } else {
         // Twi mode: Single chat
-        initializeSingleChat();
+        await initializeSingleChat();
     }
 
     // Initialize climate fact
@@ -131,7 +131,7 @@ function initializeApp() {
     currentFactElement.textContent = state.currentFact;
 }
 
-function initializeMultiChat() {
+async function initializeMultiChat() {
     // Load chats from localStorage
     const savedChats = localStorage.getItem('chats');
     if (savedChats) {
@@ -153,6 +153,25 @@ function initializeMultiChat() {
             }
         });
         saveChats();
+    } else {
+        // No local chats — try loading from backend
+        try {
+            const remoteChats = await fetchConversations();
+            if (remoteChats && remoteChats.length) {
+                state.chats = remoteChats.map(c => ({
+                    id: c.id,
+                    title: c.title || 'Chat',
+                    messages: [], // will load messages on demand
+                    uploadedFiles: [],
+                    conversationId: c.id,
+                    createdAt: c.created_at,
+                    updatedAt: c.last_active_at || c.created_at
+                }));
+                saveChats();
+            }
+        } catch (e) {
+            console.warn('Could not fetch remote conversations:', e);
+        }
     }
 
     // Show chat list sidebar
@@ -168,43 +187,45 @@ function initializeMultiChat() {
         switchToChat(mostRecent.id);
     } else {
         // Create first chat
-        createNewChat();
+        await createNewChat();
     }
     
     renderChatList();
 }
 
-function initializeSingleChat() {
-    // Hide chat list sidebar
-    chatListSidebar.style.display = 'none';
-    
-    // Load conversation ID from localStorage or create new one
-    state.conversationId = localStorage.getItem('conversationId');
-    if (!state.conversationId) {
-        createConversation();
-    }
+async function initializeSingleChat() {
+	// Hide chat list sidebar
+	chatListSidebar.style.display = 'none';
+	
+	// Twi mode is local-only: do not create or use backend conversation ids
+	state.conversationId = null;
+	// Ensure English chat state is not active
+	state.chats = [];
+	state.currentChatId = null;
 
-    // Load messages from localStorage
-    const savedMessages = localStorage.getItem('messages');
-    if (savedMessages) {
-        state.messages = JSON.parse(savedMessages);
-        renderMessages();
-    } else {
-        // Add welcome message
-        const welcomeMsg = translations[state.language].welcomeMessage;
-        state.messages = [{
-            role: 'bot',
-            content: welcomeMsg
-        }];
-        renderMessages();
-    }
+	// Load messages from Twi-specific localStorage key
+	const savedMessages = localStorage.getItem('twi_messages');
+	if (savedMessages) {
+		state.messages = JSON.parse(savedMessages);
+		renderMessages();
+	} else {
+		// Add welcome message
+		const welcomeMsg = translations[state.language].welcomeMessage;
+		state.messages = [{
+			role: 'bot',
+			content: welcomeMsg
+		}];
+		renderMessages();
+	}
 
-    // Load uploaded files from localStorage
-    const savedFiles = localStorage.getItem('uploadedFiles');
-    if (savedFiles) {
-        state.uploadedFiles = JSON.parse(savedFiles);
-        renderUploadedFiles();
-    }
+	// Load uploaded files from Twi-specific localStorage key
+	const savedFiles = localStorage.getItem('twi_uploadedFiles');
+	if (savedFiles) {
+		state.uploadedFiles = JSON.parse(savedFiles);
+		renderUploadedFiles();
+	} else {
+		state.uploadedFiles = [];
+	}
 }
 
 function setupEventListeners() {
@@ -218,38 +239,105 @@ function setupEventListeners() {
 }
 
 // API Functions
-async function createConversation() {
+async function createConversation(title = 'Chat') {
     try {
-        const response = await fetch(`${API_BASE_URL}/conversations`, {
+        // Backend expects POST /conversations/create with title as query param
+        const url = `${API_BASE_URL}/conversations/create?title=${encodeURIComponent(title)}`;
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({})
+            }
+            // no body required; backend reads title from query param
         });
 
         if (response.ok) {
             const data = await response.json();
-            state.conversationId = data.id || data.conversation_id;
-            localStorage.setItem('conversationId', state.conversationId);
+            // backend returns { conversation_id: ... }
+            state.conversationId = data.conversation_id || data.id || state.conversationId;
+            if (state.conversationId) {
+                localStorage.setItem('conversationId', state.conversationId);
+            }
+            return state.conversationId;
+        } else {
+            console.error('createConversation failed:', response.status);
         }
     } catch (error) {
         console.error('Error creating conversation:', error);
+        throw error;
     }
+    return null;
 }
 
 async function askRAG(query) {
     try {
-        const response = await fetch(`${API_BASE_URL}/rag/ask`, {
+        // Twi mode: local-only RAG call to /rag/ask (no conversation_id)
+        if (state.language === 'twi') {
+            const payload = { query };
+            const response = await fetch(`${API_BASE_URL}/rag/ask`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                // try to parse backend error message
+                let errText = `HTTP error! status: ${response.status}`;
+                try {
+                    const errJson = await response.json();
+                    errText = errJson.detail || errJson.error || JSON.stringify(errJson);
+                } catch (e) {
+                    // ignore parse error
+                }
+                throw new Error(errText);
+            }
+
+            const data = await response.json();
+            return data;
+        }
+
+        // English mode: conversation-backed flow (existing behavior)
+        let convId = state.conversationId || null;
+
+        if (state.language === 'en' && state.currentChatId) {
+            const chat = state.chats.find(c => c.id === state.currentChatId);
+            if (chat) {
+                if (!chat.conversationId) {
+                    // create and attach conversation id for this chat
+                    const newId = await createConversation(chat.title || 'Chat');
+                    chat.conversationId = newId;
+                    saveChats();
+                }
+                convId = chat.conversationId;
+                // keep global state in sync
+                state.conversationId = convId;
+            }
+        }
+
+        // If we have a valid conversation id, use the conversation-specific send endpoint
+        if (!convId) {
+            throw new Error('No conversation id available for sending the message.');
+        }
+
+        const payload = { query };
+
+        const response = await fetch(`${API_BASE_URL}/conversations/${convId}/messages/send`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ query })
+            body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            let errText = `HTTP error! status: ${response.status}`;
+            try {
+                const errJson = await response.json();
+                errText = errJson.detail || errJson.error || JSON.stringify(errJson);
+            } catch (e) {}
+            throw new Error(errText);
         }
 
         const data = await response.json();
@@ -258,7 +346,7 @@ async function askRAG(query) {
         console.error('Error asking RAG:', error);
         
         // Check if it's a connection error
-        if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED')) {
+        if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED'))) {
             throw new Error('Cannot connect to backend server. Please make sure the backend is running on ' + API_BASE_URL);
         }
         
@@ -307,6 +395,30 @@ async function uploadUrl(url) {
     } catch (error) {
         console.error('Error uploading URL:', error);
         throw error;
+    }
+}
+
+// New helper: fetch conversations list from backend
+async function fetchConversations() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/conversations/list`);
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        return await res.json();
+    } catch (err) {
+        console.error('fetchConversations error:', err);
+        throw err;
+    }
+}
+
+// New helper: fetch messages for a conversation
+async function fetchMessagesForConv(convId, limit = 200) {
+    try {
+        const res = await fetch(`${API_BASE_URL}/conversations/${convId}/messages/list?limit=${limit}`);
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        return await res.json();
+    } catch (err) {
+        console.error('fetchMessagesForConv error:', err);
+        throw err;
     }
 }
 
@@ -461,71 +573,92 @@ async function handleUrlUpload(url) {
     }
 }
 
-function handleReset() {
-    const confirmMsg = translations[state.language].resetConfirm;
-    if (confirm(confirmMsg)) {
-        if (state.language === 'en' && state.currentChatId) {
-            // English mode: Reset current chat
-            const chat = state.chats.find(c => c.id === state.currentChatId);
-            if (chat) {
-                const welcomeMsg = translations[state.language].welcomeMessage;
-                chat.messages = [{
-                    role: 'bot',
-                    content: welcomeMsg
-                }];
-                chat.uploadedFiles = [];
-                chat.title = 'New Chat';
-                chat.updatedAt = new Date().toISOString();
-                saveChats();
-                switchToChat(state.currentChatId);
-            }
-        } else {
-            // Twi mode: Reset single chat
-            const welcomeMsg = translations[state.language].welcomeMessage;
-            state.messages = [{
-                role: 'bot',
-                content: welcomeMsg
-            }];
-            state.uploadedFiles = [];
-            localStorage.removeItem('messages');
-            localStorage.removeItem('uploadedFiles');
-            renderMessages();
-            renderUploadedFiles();
-            createConversation();
-        }
-    }
+async function handleReset() {
+	const confirmMsg = translations[state.language].resetConfirm;
+	if (confirm(confirmMsg)) {
+		if (state.language === 'en' && state.currentChatId) {
+			// English mode: Reset current chat
+			const chat = state.chats.find(c => c.id === state.currentChatId);
+			if (chat) {
+				const welcomeMsg = translations[state.language].welcomeMessage;
+				chat.messages = [{
+					role: 'bot',
+					content: welcomeMsg
+				}];
+				chat.uploadedFiles = [];
+				chat.title = 'New Chat';
+				chat.updatedAt = new Date().toISOString();
+				// reset conversationId for this chat so we create a fresh backend convo next time
+				chat.conversationId = null;
+				saveChats();
+				switchToChat(state.currentChatId);
+			}
+		} else {
+			// Twi mode: Reset single chat (local only)
+			const welcomeMsg = translations[state.language].welcomeMessage;
+			state.messages = [{
+				role: 'bot',
+				content: welcomeMsg
+			}];
+			state.uploadedFiles = [];
+			// clear Twi-specific local persisted data
+			localStorage.removeItem('twi_messages');
+			localStorage.removeItem('twi_uploadedFiles');
+			// do NOT create a backend conversation for Twi
+			renderMessages();
+			renderUploadedFiles();
+		}
+	}
 }
 
-function handleLanguageToggle() {
-    // Save current chat state before switching
-    if (state.language === 'en' && state.currentChatId) {
-        saveCurrentChat();
-    }
-    
-    // Toggle language
-    state.language = state.language === 'en' ? 'twi' : 'en';
-    
-    // Save to localStorage
-    localStorage.setItem('language', state.language);
-    
-    // Reinitialize based on new language mode
-    if (state.language === 'en') {
-        initializeMultiChat();
-    } else {
-        initializeSingleChat();
-    }
-    
-    // Update UI
-    updateLanguageUI();
+async function handleLanguageToggle() {
+	// Save current chat state before switching
+	if (state.language === 'en' && state.currentChatId) {
+		saveCurrentChat();
+	}
+	
+	// Toggle language
+	state.language = state.language === 'en' ? 'twi' : 'en';
+	
+	// Save to localStorage
+	localStorage.setItem('language', state.language);
+
+	// If switching to Twi, clear English chat state to avoid leakage
+	if (state.language === 'twi') {
+		state.chats = [];
+		state.currentChatId = null;
+		// keep conversationId null for Twi
+		state.conversationId = null;
+		// remove currentChatId persisted value so it doesn't reappear
+		localStorage.removeItem('currentChatId');
+	}
+	
+	// Reinitialize based on new language mode
+	if (state.language === 'en') {
+		await initializeMultiChat();
+	} else {
+		await initializeSingleChat();
+	}
+	
+	// Update UI
+	updateLanguageUI();
 }
 
-function handleNewChat() {
-    createNewChat();
+async function handleNewChat() {
+    await createNewChat();
 }
 
-function createNewChat() {
+async function createNewChat() {
     const chatId = 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     const welcomeMsg = translations[state.language].welcomeMessage;
+    
+    // Create conversation for this chat
+    let convId = null;
+    try {
+        convId = await createConversation('New Chat');
+    } catch (e) {
+        console.warn('Could not create conversation for new chat:', e);
+    }
     
     const newChat = {
         id: chatId,
@@ -535,12 +668,14 @@ function createNewChat() {
             content: welcomeMsg
         }],
         uploadedFiles: [],
+        conversationId: convId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     };
     
     state.chats.push(newChat);
     state.currentChatId = chatId;
+    state.conversationId = convId;
     saveChats();
     switchToChat(chatId);
     renderChatList();
@@ -552,7 +687,6 @@ function switchToChat(chatId) {
         saveCurrentChat();
     }
     
-    
     const chat = state.chats.find(c => c.id === chatId);
     if (!chat) return;
     
@@ -560,6 +694,34 @@ function switchToChat(chatId) {
     state.messages = chat.messages || [];
     state.uploadedFiles = chat.uploadedFiles || [];
     state.conversationId = chat.conversationId || null;
+    
+    // If this chat has a backend conversation id, try to load messages from backend
+    if (chat.conversationId) {
+        // fetch and populate messages asynchronously (non-blocking UI)
+        fetchMessagesForConv(chat.conversationId)
+            .then(rows => {
+                if (rows && rows.length) {
+                    // convert rows into frontend messages: user prompt then bot answer
+                    const mapped = rows.flatMap(row => {
+                        const userMsg = { id: `u-${row.id}-${Math.random().toString(36).slice(2,8)}`, role: 'user', content: row.prompt };
+                        const botContent = row.answer || '';
+                        const botMsg = { id: `b-${row.id}-${Math.random().toString(36).slice(2,8)}`, role: 'bot', content: botContent };
+                        return [userMsg, botMsg];
+                    });
+                    chat.messages = mapped;
+                    // only update state/messages if switching to this chat now
+                    if (state.currentChatId === chatId) {
+                        state.messages = mapped;
+                        renderMessages();
+                        saveChats();
+                    }
+                }
+            })
+            .catch(err => {
+                // ignore fetch errors and keep local messages if present
+                console.warn('Failed to load messages for chat', chatId, err);
+            });
+    }
     
     // Fix welcome message if it's in the wrong language
     if (state.messages.length > 0 && state.messages[0].role === 'bot') {
@@ -632,11 +794,12 @@ function saveCurrentChat() {
     if (chat) {
         chat.messages = state.messages;
         chat.uploadedFiles = state.uploadedFiles;
-        chat.conversationId = state.conversationId;
+        chat.conversationId = chat.conversationId || state.conversationId || null;
         chat.updatedAt = new Date().toISOString();
         
         // Update title from first user message if available
-        const firstUserMessage = state.messages.find(m => m.role === 'user');
+        // Use chat.messages (the persisted chat messages) instead of state.messages
+        const firstUserMessage = (chat.messages || []).find(m => m.role === 'user');
         if (firstUserMessage && (chat.title === 'New Chat' || !chat.title)) {
             const title = firstUserMessage.content.trim();
             chat.title = title.length > 30 ? title.substring(0, 30) + '...' : title;
@@ -644,7 +807,7 @@ function saveCurrentChat() {
             renderChatList();
         }
         
-        saveChats();
+        // saveChats();
     }
 }
 
@@ -804,6 +967,9 @@ function addMessage(role, content, isHTML = false) {
     state.messages.push(message);
     saveMessages();
     
+    // NOTE: removed automatic chat title update from here to avoid
+    // using messages from the wrong chat context.
+    /*
     // If this is the first user message in English mode, update chat title
     if (role === 'user' && state.language === 'en' && state.currentChatId) {
         const chat = state.chats.find(c => c.id === state.currentChatId);
@@ -814,6 +980,7 @@ function addMessage(role, content, isHTML = false) {
             renderChatList();
         }
     }
+    */
 
     const messageElement = createMessageElement(message, isHTML);
     messagesContainer.appendChild(messageElement);
@@ -953,8 +1120,8 @@ function saveMessages() {
         // English mode: Save to current chat
         saveCurrentChat();
     } else {
-        // Twi mode: Save to localStorage
-        localStorage.setItem('messages', JSON.stringify(state.messages));
+        // Twi mode: Save to twi-specific localStorage
+        localStorage.setItem('twi_messages', JSON.stringify(state.messages));
     }
 }
 
@@ -963,8 +1130,8 @@ function saveUploadedFiles() {
         // English mode: Save to current chat
         saveCurrentChat();
     } else {
-        // Twi mode: Save to localStorage
-        localStorage.setItem('uploadedFiles', JSON.stringify(state.uploadedFiles));
+        // Twi mode: Save to twi-specific localStorage
+        localStorage.setItem('twi_uploadedFiles', JSON.stringify(state.uploadedFiles));
     }
 }
 
