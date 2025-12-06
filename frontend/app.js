@@ -354,6 +354,56 @@ async function askRAG(query) {
     }
 }
 
+async function translateToEnglish(text) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/translate/to_english`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                text: text,
+                source_lang: 'twi'
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.translation;
+    } catch (error) {
+        console.error('Error translating to English:', error);
+        return text;
+    }
+}
+
+async function translateFromEnglish(text) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/translate/from_english`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                text: text,
+                target_lang: 'twi'
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.translation;
+    } catch (error) {
+        console.error('Error translating from English:', error);
+        return text;
+    }
+}
+
 async function uploadFile(file) {
     try {
         const formData = new FormData();
@@ -481,13 +531,29 @@ async function handleUserQuestion(userText) {
     try {
         // Get RAG response
         console.log('Sending RAG request...');
-        const response = await askRAG(userText);
+        
+        // If in Twi mode, translate query to English first
+        let queryForRAG = userText;
+        if (state.language === 'twi') {
+            console.log('Translating Twi query to English...');
+            queryForRAG = await translateToEnglish(userText);
+            console.log('Translated query:', queryForRAG);
+        }
+        
+        const response = await askRAG(queryForRAG);
         console.log('RAG response received:', response);
         
-        const answer = response?.answer || 'No response received';
+        let answer = response?.answer || 'No response received';
         const confidence = response?.has_chunks;
         console.log('Confidence:', confidence);
         const sources = response?.sources;
+
+        // If in Twi mode, translate answer back to Twi
+        if (state.language === 'twi') {
+            console.log('Translating answer back to Twi...');
+            answer = await translateFromEnglish(answer);
+            console.log('Translated answer:', answer);
+        }
 
         // Format response
         let responseText = String(answer);
