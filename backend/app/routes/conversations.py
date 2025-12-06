@@ -63,9 +63,9 @@ def send_message(conversation_id: str, payload: PromptCreate) -> PromptOut:
 
     # RAG call
     rag_response = rag_ask(payload)
-     # If rag_ask produced an error, raise HTTPException so response_model validation won't fail
-    if getattr(rag_response, "error", None):
-        raise HTTPException(status_code=400, detail=str(rag_response.error))
+    
+    if rag_response.answer == "":
+        raise HTTPException(status_code=400, detail="RAG pipeline failed to produce an answer.")
 
     message_id = str(uuid.uuid4())
 
