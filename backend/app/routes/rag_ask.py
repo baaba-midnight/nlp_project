@@ -72,6 +72,5 @@ def rag_ask(payload: PromptCreate) -> PromptOut:
     return PromptOut(
         answer=output.get("answer", ""),
         sources=sources,
-        has_chunks=output.get("has_chunks"),
-        error=output.get("error"),
+        has_chunks=output.get("has_chunks")
     )

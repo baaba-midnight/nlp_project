@@ -123,7 +123,6 @@ ANSWER:"""
                 "num_sources": 0,
                 "sources": [],
                 "has_chunks":  False,
-                "error": "empty_query",
                 "avg_similarity": 0.0
             }
         
@@ -134,7 +133,6 @@ ANSWER:"""
                 "num_sources": 0,
                 "sources": [],
                 "has_chunks": False,
-                "error": "Invalid number of passages requested",
                 "avg_similarity": 0.0
             }
         # Stage 1: RETRIEVAL
@@ -154,7 +152,6 @@ ANSWER:"""
                 "num_sources": 0,
                 "sources": [],
                 "has_chunks": False,
-                "error": "no_passages",
                 "avg_similarity": 0.0
             }
         
@@ -168,7 +165,6 @@ ANSWER:"""
             "answer": raw_answer,
             "sources": passages,
             "has_chunks": True,
-            "error": "no error",
             "num_sources": len(passages),
             "avg_similarity": np.mean([p["similarity"] for p in passages])
         }
