@@ -17,4 +17,3 @@ class PromptOut(BaseModel):
     answer: str
     sources: List[SourceItem]
     has_chunks: Optional[bool]
-    error: Optional[str]
