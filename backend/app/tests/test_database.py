@@ -7,7 +7,7 @@ COLAB_URL = "https://miquel-nonintersecting-pachydermatously.ngrok-free.dev/"
 pipeline = RAGPipeline(
     similarity_threshold=0.5,
     embedder_model="sentence-transformers/all-MiniLM-L6-v2",
-    language_model="alotanna/llama2-7b-ghana-climate",
+    language_model="alotanna/llama2-7b-ghana-NLP",
     use_colab_api=True,  
     colab_url=COLAB_URL 
 )
