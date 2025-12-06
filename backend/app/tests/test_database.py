@@ -13,16 +13,14 @@ pipeline = RAGPipeline(
 )
 
 test_questions = [
-    "How does Ghana's Environmental Protection Act work?"
+    "What is love?"
 ]
 
 for question in test_questions:
     print(f"\nQ: {question}")
     result = pipeline.run(
         query=question,
-        k=10,
-        max_input_length=2048,
-        max_new_tokens=512
+        k=10
     )
     print(f"A: {result['answer']}")
     print(f"Confidence: {result['has_chunks']} | Sources: {result['num_sources']}")

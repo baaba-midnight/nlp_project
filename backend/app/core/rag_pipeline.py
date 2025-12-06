@@ -119,22 +119,20 @@ ANSWER:"""
         
         if not query or not query.strip():
             return {
-                "answer": "Please provide a valid question.",
+                "answer": "",
                 "num_sources": 0,
                 "sources": [],
                 "has_chunks":  False,
-                "error": "empty_query",
                 "avg_similarity": 0.0
             }
         
         if k <= 0:
             print("Invalid value of k provided to RAG pipeline.")
             return {
-                "answer": "Invalid number of passages requested.",
+                "answer": "",
                 "num_sources": 0,
                 "sources": [],
                 "has_chunks": False,
-                "error": "no_passages",
                 "avg_similarity": 0.0
             }
         # Stage 1: RETRIEVAL
@@ -154,7 +152,6 @@ ANSWER:"""
                 "num_sources": 0,
                 "sources": [],
                 "has_chunks": False,
-                "error": "no_passages",
                 "avg_similarity": 0.0
             }
         
