@@ -13,7 +13,7 @@ pipeline = RAGPipeline(
 )
 
 test_questions = [
-    "What is love?"
+    "how does ghana fight climate change"
 ]
 
 for question in test_questions:

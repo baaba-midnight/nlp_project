@@ -30,8 +30,8 @@ use_colab_api = colab_url is not None and colab_url.strip() != ""
 
 # If colab_url is not set, use local model instead
 if not use_colab_api:
-    print("⚠️  No colab_url found in environment. Using local model instead.")
-    print("   To use Colab API, set colab_url in your .env file")
+    print("No colab_url found in environment. Using local model instead.")
+    print("To use Colab API, set colab_url in your .env file")
 
 pipeline = RAGPipeline(
     similarity_threshold=0.4,

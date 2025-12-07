@@ -38,7 +38,7 @@ def create_conversation(title: str):
 
 
 @router.get("/list", response_model=List[ConversationOut])
-def get_conversations(conversation_id: str):
+def get_conversations():
     resp = (
         supabase.table("conversations")
         .select("*")
@@ -63,9 +63,11 @@ def send_message(conversation_id: str, payload: PromptCreate) -> PromptOut:
 
     # RAG call
     rag_response = rag_ask(payload)
-    
+
     if rag_response.answer == "":
-        raise HTTPException(status_code=400, detail="RAG pipeline failed to produce an answer.")
+        raise HTTPException(
+            status_code=400, detail="RAG pipeline failed to produce an answer."
+        )
 
     message_id = str(uuid.uuid4())
 

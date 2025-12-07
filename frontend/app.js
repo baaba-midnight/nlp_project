@@ -132,65 +132,89 @@ async function initializeApp() {
 }
 
 async function initializeMultiChat() {
-    // Load chats from localStorage
-    const savedChats = localStorage.getItem('chats');
-    if (savedChats) {
-        state.chats = JSON.parse(savedChats);
-        
-        // Fix welcome messages in all chats to match current language
-        const correctWelcomeMsg = translations[state.language].welcomeMessage;
-        const twiWelcomeMsg = translations.twi.welcomeMessage;
-        const enWelcomeMsg = translations.en.welcomeMessage;
-        
-        state.chats.forEach(chat => {
-            if (chat.messages && chat.messages.length > 0 && chat.messages[0].role === 'bot') {
-                const currentWelcome = chat.messages[0].content;
-                // If welcome message is in wrong language, fix it
-                if ((state.language === 'en' && currentWelcome === twiWelcomeMsg) ||
-                    (state.language === 'twi' && currentWelcome === enWelcomeMsg)) {
-                    chat.messages[0].content = correctWelcomeMsg;
-                }
-            }
-        });
-        saveChats();
-    } else {
-        // No local chats — try loading from backend
-        try {
-            const remoteChats = await fetchConversations();
-            if (remoteChats && remoteChats.length) {
-                state.chats = remoteChats.map(c => ({
-                    id: c.id,
-                    title: c.title || 'Chat',
-                    messages: [], // will load messages on demand
-                    uploadedFiles: [],
-                    conversationId: c.id,
-                    createdAt: c.created_at,
-                    updatedAt: c.last_active_at || c.created_at
-                }));
+    // Always try to load chats from the backend first.
+    // If the backend returns no chats or the fetch fails, fall back to localStorage.
+    try {
+        console.debug('initializeMultiChat: fetching remote conversations');
+        const remoteChats = await fetchConversations();
+        console.log('Fetched remote conversations:', remoteChats);
+
+        if (remoteChats && remoteChats.length) {
+            state.chats = remoteChats.map(c => ({
+                id: c.id,
+                title: c.title || 'Chat',
+                messages: [], // will load messages on demand
+                uploadedFiles: [],
+                conversationId: c.id,
+                createdAt: c.created_at,
+                updatedAt: c.last_active_at || c.created_at
+            }));
+            saveChats();
+        } else {
+            // Remote returned empty list — try localStorage as a fallback
+            const savedChats = localStorage.getItem('chats');
+            if (savedChats) {
+                state.chats = JSON.parse(savedChats);
+                // Fix welcome messages in all chats to match current language
+                const correctWelcomeMsg = translations[state.language].welcomeMessage;
+                const twiWelcomeMsg = translations.twi.welcomeMessage;
+                const enWelcomeMsg = translations.en.welcomeMessage;
+                state.chats.forEach(chat => {
+                    if (chat.messages && chat.messages.length > 0 && chat.messages[0].role === 'bot') {
+                        const currentWelcome = chat.messages[0].content;
+                        if ((state.language === 'en' && currentWelcome === twiWelcomeMsg) ||
+                            (state.language === 'twi' && currentWelcome === enWelcomeMsg)) {
+                            chat.messages[0].content = correctWelcomeMsg;
+                        }
+                    }
+                });
                 saveChats();
+            } else {
+                // No remote and no local — we'll create a new chat below (handled by existing logic)
+                state.chats = [];
             }
-        } catch (e) {
-            console.warn('Could not fetch remote conversations:', e);
+        }
+    } catch (e) {
+        console.warn('Could not fetch remote conversations, falling back to localStorage:', e);
+        const savedChats = localStorage.getItem('chats');
+        if (savedChats) {
+            state.chats = JSON.parse(savedChats);
+            // Fix welcome messages in all chats to match current language
+            const correctWelcomeMsg = translations[state.language].welcomeMessage;
+            const twiWelcomeMsg = translations.twi.welcomeMessage;
+            const enWelcomeMsg = translations.en.welcomeMessage;
+            state.chats.forEach(chat => {
+                if (chat.messages && chat.messages.length > 0 && chat.messages[0].role === 'bot') {
+                    const currentWelcome = chat.messages[0].content;
+                    if ((state.language === 'en' && currentWelcome === twiWelcomeMsg) ||
+                        (state.language === 'twi' && currentWelcome === enWelcomeMsg)) {
+                        chat.messages[0].content = correctWelcomeMsg;
+                    }
+                }
+            });
+            saveChats();
+        } else {
+            state.chats = [];
         }
     }
-
-    // Show chat list sidebar
-    chatListSidebar.style.display = 'flex';
-    
-    // Load current chat ID or create new chat
-    const savedCurrentChatId = localStorage.getItem('currentChatId');
-    if (savedCurrentChatId && state.chats.find(c => c.id === savedCurrentChatId)) {
-        switchToChat(savedCurrentChatId);
-    } else if (state.chats.length > 0) {
-        // Switch to most recent chat
-        const mostRecent = state.chats.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0];
-        switchToChat(mostRecent.id);
-    } else {
-        // Create first chat
-        await createNewChat();
-    }
-    
-    renderChatList();
+ 
+     // Show chat list sidebar
+     chatListSidebar.style.display = 'flex';
+     
+     // Load current chat ID or create new chat
+     const savedCurrentChatId = localStorage.getItem('currentChatId');
+     if (savedCurrentChatId && state.chats.find(c => c.id === savedCurrentChatId)) {
+         switchToChat(savedCurrentChatId);
+     } else if (state.chats.length > 0) {
+         // Switch to most recent chat
+         const mostRecent = state.chats.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0];
+         switchToChat(mostRecent.id);
+     } else {
+         // Create first chat
+         await createNewChat();
+     }
+     
+     renderChatList();
 }
 
 async function initializeSingleChat() {
@@ -453,6 +477,7 @@ async function uploadUrl(url) {
 // New helper: fetch conversations list from backend
 async function fetchConversations() {
     try {
+        console.debug('fetchConversations: issuing GET', `${API_BASE_URL}/conversations/list`);
         const res = await fetch(`${API_BASE_URL}/conversations/list`);
         if (!res.ok) throw new Error(`Status ${res.status}`);
         return await res.json();
@@ -525,6 +550,32 @@ async function handleUserQuestion(userText) {
     
     // Small delay to ensure user message renders
     await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Ensure backend conversation exists for this chat and assign a proper title from the first user prompt
+    if (state.language === 'en' && state.currentChatId) {
+        const chat = state.chats.find(c => c.id === state.currentChatId);
+        if (chat && !chat.conversationId) {
+            // Use the user's first prompt (trimmed) as the conversation title
+            const titleCandidate = (userText || '').trim();
+            const title = titleCandidate.length > 0
+                ? (titleCandidate.length > 30 ? titleCandidate.substring(0, 30) + '...' : titleCandidate)
+                : 'Chat';
+            try {
+                // Create backend conversation with meaningful title
+                const convId = await createConversation(title);
+                if (convId) {
+                    chat.conversationId = convId;
+                    state.conversationId = convId;
+                }
+                // Update local chat title and persist now that we have a concrete title
+                chat.title = title;
+                saveChats();
+            } catch (e) {
+                console.warn('Could not create backend conversation for chat:', e);
+                // proceed; askRAG has fallback logic but may fail if no convId
+            }
+        }
+    }
 
     // Show loading indicator
     const loadingId = addMessage('bot', '<span class="loading"></span>', true);
@@ -738,14 +789,7 @@ async function createNewChat() {
     const chatId = 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     const welcomeMsg = translations[state.language].welcomeMessage;
     
-    // Create conversation for this chat
-    let convId = null;
-    try {
-        convId = await createConversation('New Chat');
-    } catch (e) {
-        console.warn('Could not create conversation for new chat:', e);
-    }
-    
+    // Do NOT create a backend conversation here. Defer until first user message provides a title.
     const newChat = {
         id: chatId,
         title: 'New Chat',
@@ -754,15 +798,15 @@ async function createNewChat() {
             content: welcomeMsg
         }],
         uploadedFiles: [],
-        conversationId: convId,
+        conversationId: null, // no backend convo yet
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     };
     
     state.chats.push(newChat);
     state.currentChatId = chatId;
-    state.conversationId = convId;
-    saveChats();
+    state.conversationId = null;
+    // Do NOT persist here — wait until the first user message provides a title and then persist.
     switchToChat(chatId);
     renderChatList();
 }
@@ -887,14 +931,15 @@ function saveCurrentChat() {
         // Use chat.messages (the persisted chat messages) instead of state.messages
         const firstUserMessage = (chat.messages || []).find(m => m.role === 'user');
         if (firstUserMessage && (chat.title === 'New Chat' || !chat.title)) {
+            // Assign title from the first user message and persist the chat now
             const title = firstUserMessage.content.trim();
             chat.title = title.length > 30 ? title.substring(0, 30) + '...' : title;
             // Re-render chat list to show updated title
             renderChatList();
+            // Persist chats only when a title has been created from the first prompt
+            saveChats();
         }
-        
-        // saveChats();
-    }
+     }
 }
 
 function saveChats() {
