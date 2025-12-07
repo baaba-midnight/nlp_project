@@ -132,9 +132,9 @@ class Llama2LLM:
                     json={
                         "prompt": prompt,
                         "max_new_tokens": max_new_tokens,
-                        "temperature": 0.3,
-                        "top_p": 0.85,
-                        "repetition_penalty": 1.15
+                        "temperature": 0.5,
+                        "top_p": 0.9,
+                        "repetition_penalty": 1.05
                     },
                     timeout=120
                 )
