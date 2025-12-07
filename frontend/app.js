@@ -548,6 +548,10 @@ async function handleUserQuestion(userText) {
     const userMessageId = addMessage('user', userText.trim());
     console.log('User message added:', userMessageId);
     
+    // Clear uploaded files immediately after user message is added
+    state.uploadedFiles = [];
+    renderUploadedFiles();
+    
     // Small delay to ensure user message renders
     await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -674,18 +678,32 @@ function handleFileSelection(event) {
 async function handleFileUpload(file) {
     try {
         showSuccess(`Uploading ${file.name}...`);
-        const result = await uploadFile(file);
-
-        // Update metadata for the file that was just uploaded
+        
+        // Mark file as uploading
         const fileEntry = state.uploadedFiles.find(f => f.name === file.name);
         if (fileEntry) {
+            fileEntry.uploading = true;
+            renderUploadedFiles();
+        }
+        
+        const result = await uploadFile(file);
+
+        // Update metadata and mark as complete
+        if (fileEntry) {
             fileEntry.metadata = result;
+            fileEntry.uploading = false;
         }
 
         renderUploadedFiles();
         showSuccess(`Successfully uploaded ${file.name}`);
     } catch (error) {
         showError(`Failed to upload ${file.name}: ${error.message}`);
+        // Mark as failed
+        const fileEntry = state.uploadedFiles.find(f => f.name === file.name);
+        if (fileEntry) {
+            fileEntry.uploading = false;
+            fileEntry.error = true;
+        }
         throw error;
     }
 }
@@ -693,19 +711,35 @@ async function handleFileUpload(file) {
 async function handleUrlUpload(url) {
     try {
         showSuccess(`Processing URL: ${url}...`);
-        const result = await uploadUrl(url);
-
-        // Add to uploaded files list
+        
+        // Add URL with uploading flag
         state.uploadedFiles.push({
             name: url,
             type: 'url',
-            metadata: result
+            metadata: null,
+            uploading: true
         });
+        renderUploadedFiles();
+        
+        const result = await uploadUrl(url);
+
+        // Update metadata
+        const fileEntry = state.uploadedFiles.find(f => f.name === url);
+        if (fileEntry) {
+            fileEntry.metadata = result;
+            fileEntry.uploading = false;
+        }
 
         renderUploadedFiles();
         showSuccess(`Successfully processed URL: ${url}`);
     } catch (error) {
         showError(`Failed to process URL: ${error.message}`);
+        // Mark as failed
+        const fileEntry = state.uploadedFiles.find(f => f.name === url);
+        if (fileEntry) {
+            fileEntry.uploading = false;
+            fileEntry.error = true;
+        }
         throw error;
     }
 }
@@ -1223,6 +1257,24 @@ function renderUploadedFiles() {
         const nameSpan = document.createElement('span');
         nameSpan.textContent = file.name;
         li.appendChild(nameSpan);
+        
+        // Add loading indicator if uploading
+        if (file.uploading) {
+            const spinner = document.createElement('span');
+            spinner.className = 'upload-spinner';
+            spinner.innerHTML = '<span class="loading"></span>';
+            li.appendChild(spinner);
+        } else if (file.error) {
+            const errorIcon = document.createElement('span');
+            errorIcon.className = 'upload-error';
+            errorIcon.textContent = '⚠️';
+            li.appendChild(errorIcon);
+        } else {
+            const checkIcon = document.createElement('span');
+            checkIcon.className = 'upload-success';
+            checkIcon.textContent = '✓';
+            li.appendChild(checkIcon);
+        }
         
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-file-btn';

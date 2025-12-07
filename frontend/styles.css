@@ -650,6 +650,31 @@ body {
     align-items: center;
     justify-content: space-between;
     width: 100%;
+    gap: 8px;
+}
+
+.upload-spinner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--primary-color);
+}
+
+.upload-success {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: #10b981;
+}
+
+.upload-error {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--secondary-color);
 }
 
 .remove-file-btn {
@@ -659,7 +684,7 @@ body {
     cursor: pointer;
     font-size: 16px;
     padding: 2px 6px;
-    margin-left: 8px;
+    margin-left: auto;
     transition: color 0.2s ease;
 }
 
