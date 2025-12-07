@@ -236,6 +236,8 @@ function setupEventListeners() {
     if (newChatButton) {
         newChatButton.addEventListener('click', handleNewChat);
     }
+    // Add listener to show file immediately when selected
+    fileUpload.addEventListener('change', handleFileSelection);
 }
 
 // API Functions
@@ -486,6 +488,11 @@ async function handleFormSubmit(e) {
     sendButton.style.cursor = 'not-allowed';
 
     try {
+        // Clear form immediately after sending
+        userInput.value = '';
+        fileUpload.value = '';
+        fileUrl.value = '';
+
         // Handle file upload
         if (uploadedFile) {
             await handleFileUpload(uploadedFile);
@@ -497,11 +504,6 @@ async function handleFormSubmit(e) {
         if (userText) {
             await handleUserQuestion(userText);
         }
-
-        // Clear form
-        userInput.value = '';
-        fileUpload.value = '';
-        fileUrl.value = '';
     } catch (error) {
         showError('An error occurred. Please try again.');
         console.error('Form submission error:', error);
@@ -599,17 +601,35 @@ async function handleUserQuestion(userText) {
     }
 }
 
+function handleFileSelection(event) {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            // Add to uploaded files list with null metadata (will be set after upload)
+            const existingIndex = state.uploadedFiles.findIndex(f => f.name === file.name);
+            if (existingIndex === -1) {
+                state.uploadedFiles.push({
+                    name: file.name,
+                    type: file.type,
+                    metadata: null  // Will be updated after upload completes
+                });
+            }
+        }
+        renderUploadedFiles();
+    }
+}
+
 async function handleFileUpload(file) {
     try {
         showSuccess(`Uploading ${file.name}...`);
         const result = await uploadFile(file);
 
-        // Add to uploaded files list
-        state.uploadedFiles.push({
-            name: file.name,
-            type: file.type,
-            metadata: result
-        });
+        // Update metadata for the file that was just uploaded
+        const fileEntry = state.uploadedFiles.find(f => f.name === file.name);
+        if (fileEntry) {
+            fileEntry.metadata = result;
+        }
 
         renderUploadedFiles();
         showSuccess(`Successfully uploaded ${file.name}`);
@@ -1151,13 +1171,30 @@ function renderUploadedFiles() {
 
     uploadedFilesDiv.classList.add('show');
     filesList.innerHTML = '';
-    state.uploadedFiles.forEach(file => {
+    state.uploadedFiles.forEach((file, index) => {
         const li = document.createElement('li');
-        li.textContent = file.name;
+        li.className = 'file-item';
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = file.name;
+        li.appendChild(nameSpan);
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-file-btn';
+        removeBtn.textContent = '✕';
+        removeBtn.onclick = () => removeFile(index);
+        li.appendChild(removeBtn);
+        
         filesList.appendChild(li);
     });
 
     saveUploadedFiles();
+}
+
+function removeFile(index) {
+    state.uploadedFiles.splice(index, 1);
+    renderUploadedFiles();
+    showSuccess('File removed');
 }
 
 function showError(message) {

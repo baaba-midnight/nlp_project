@@ -33,7 +33,7 @@ class Llama2LLM:
         
         # Set token limits based on model type
         self.max_input_length = 2048  # Default for Colab
-        self.max_output_length = 2048  # Default for Colab
+        self.max_output_length = 1024  # Increased from default
         
         print(f"Loading tokenizer: {language_model}")
         self.tokenizer = AutoTokenizer.from_pretrained(language_model)
@@ -72,8 +72,8 @@ class Llama2LLM:
         print(f"Loading FALLBACK model: {self.fallback_model}")
         
         # Update token limits for TinyLlama
-        self.max_input_length = 1024
-        self.max_output_length = 1024
+        self.max_input_length = 2048
+        self.max_output_length = 512
         print(f"Token limits adjusted for fallback: {self.max_input_length} input / {self.max_output_length} output")
         
         from transformers import AutoModelForCausalLM
@@ -132,9 +132,9 @@ class Llama2LLM:
                     json={
                         "prompt": prompt,
                         "max_new_tokens": max_new_tokens,
-                        "temperature": 0.3,
-                        "top_p": 0.85,
-                        "repetition_penalty": 1.15
+                        "temperature": 0.5,
+                        "top_p": 0.9,
+                        "repetition_penalty": 1.05
                     },
                     timeout=120
                 )
@@ -176,10 +176,10 @@ class Llama2LLM:
                 **inputs,
                 max_new_tokens=max_new_tokens,
                 pad_token_id=self.local_tokenizer.pad_token_id,
-                temperature=0.3,
+                temperature=0.5,
                 do_sample=True,
-                top_p=0.85,
-                repetition_penalty=1.15,
+                top_p=0.9,
+                repetition_penalty=1.05,
                 no_repeat_ngram_size=3
             )
         
