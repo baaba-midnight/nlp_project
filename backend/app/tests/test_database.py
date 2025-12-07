@@ -7,13 +7,13 @@ COLAB_URL = "https://miquel-nonintersecting-pachydermatously.ngrok-free.dev/"
 pipeline = RAGPipeline(
     similarity_threshold=0.5,
     embedder_model="sentence-transformers/all-MiniLM-L6-v2",
-    language_model="alotanna/llama2-7b-ghana-NLP",
+    language_model="alotanna/llama2-7b-ghana-climate",
     use_colab_api=True,  
     colab_url=COLAB_URL 
 )
 
 test_questions = [
-    "What is love?"
+    "how does ghana fight climate change"
 ]
 
 for question in test_questions:

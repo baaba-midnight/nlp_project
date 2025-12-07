@@ -36,7 +36,7 @@ if not use_colab_api:
 pipeline = RAGPipeline(
     similarity_threshold=0.4,
     embedder_model="sentence-transformers/all-MiniLM-L6-v2",
-    language_model="alotanna/llama2-7b-ghana-NLP",
+    language_model="alotanna/llama2-7b-ghana-climate",
     use_colab_api=use_colab_api,
     colab_url=colab_url
 )
