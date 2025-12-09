@@ -33,7 +33,7 @@ class Llama2LLM:
         
         # Set token limits based on model type
         self.max_input_length = 2048  # Default for Colab
-        self.max_output_length = 1024  # Increased from default
+        self.max_output_length = 2048  # Increased from default
         
         print(f"Loading tokenizer: {language_model}")
         self.tokenizer = AutoTokenizer.from_pretrained(language_model)
@@ -72,8 +72,8 @@ class Llama2LLM:
         print(f"Loading FALLBACK model: {self.fallback_model}")
         
         # Update token limits for TinyLlama
-        self.max_input_length = 2048
-        self.max_output_length = 512
+        self.max_input_length = 1024
+        self.max_output_length = 1024
         print(f"Token limits adjusted for fallback: {self.max_input_length} input / {self.max_output_length} output")
         
         from transformers import AutoModelForCausalLM
