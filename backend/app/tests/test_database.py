@@ -13,7 +13,9 @@ pipeline = RAGPipeline(
 )
 
 test_questions = [
-    "how does ghana fight climate change"
+    # "how does ghana fight climate change"
+    # "where is ghana on a map"
+    "who is the president of ghana"
 ]
 
 for question in test_questions:

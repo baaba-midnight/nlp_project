@@ -33,7 +33,7 @@ class Llama2LLM:
         
         # Set token limits based on model type
         self.max_input_length = 2048  # Default for Colab
-        self.max_output_length = 2048  # Increased from default
+        self.max_output_length = 2048  # Default for Colab
         
         print(f"Loading tokenizer: {language_model}")
         self.tokenizer = AutoTokenizer.from_pretrained(language_model)
@@ -176,7 +176,7 @@ class Llama2LLM:
                 **inputs,
                 max_new_tokens=max_new_tokens,
                 pad_token_id=self.local_tokenizer.pad_token_id,
-                temperature=0.5,
+                temperature=0.3,
                 do_sample=True,
                 top_p=0.9,
                 repetition_penalty=1.05,
