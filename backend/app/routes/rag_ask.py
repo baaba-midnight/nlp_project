@@ -13,7 +13,6 @@ Modified By: baaba-midnight
 Copyright ©2025 baaba-midnight
 """
 
-import logging
 from fastapi import APIRouter
 
 from ..core.rag_pipeline import RAGPipeline
@@ -21,19 +20,17 @@ from ..models.prompt import PromptCreate, PromptOut
 import os
 from dotenv import load_dotenv
 
-logger = logging.getLogger(__name__)
-
 load_dotenv()
 
 # Get colab_url from environment, default to None
 colab_url = os.getenv("colab_url")
-logger.info(f"colab_url from env: {colab_url}")
+print(f"colab_url from env: {colab_url}")   
 use_colab_api = colab_url is not None and colab_url.strip() != ""
 
 # If colab_url is not set, use local model instead
 if not use_colab_api:
-    logger.info("No colab_url found in environment. Using local model instead.")
-    logger.info("To use Colab API, set colab_url in your .env file")
+    print("No colab_url found in environment. Using local model instead.")
+    print("To use Colab API, set colab_url in your .env file")
 
 pipeline = RAGPipeline(
     similarity_threshold=0.4,
