@@ -560,7 +560,7 @@ async function handleUserQuestion(userText) {
         const chat = state.chats.find(c => c.id === state.currentChatId);
         if (chat && !chat.conversationId) {
             // Use the user's first prompt (trimmed) as the conversation title
-            const titleCandidate = (userText || '').trim();
+            const titleCandidate = userText.trim();
             const title = titleCandidate.length > 0
                 ? (titleCandidate.length > 30 ? titleCandidate.substring(0, 30) + '...' : titleCandidate)
                 : 'Chat';
@@ -603,7 +603,6 @@ async function handleUserQuestion(userText) {
         let answer = response?.answer || 'No response received';
         const confidence = response?.has_chunks;
         console.log('Confidence:', confidence);
-        const sources = response?.sources;
 
         // If in Twi mode, translate answer back to Twi
         if (state.language === 'twi') {

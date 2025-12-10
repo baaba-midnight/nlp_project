@@ -110,12 +110,14 @@ async def process_files(files: List[UploadFile] = File(...)) -> dict:
             try:
                 await upload.close()
             except Exception:
+                # Ignore errors during file close; cleanup failure is non-critical
                 pass
             continue
         finally:
             try:
                 await upload.close()
             except Exception:
+                # Ignore errors during file close; cleanup failure is non-critical
                 pass
 
         is_pdf = False
@@ -149,6 +151,7 @@ async def process_files(files: List[UploadFile] = File(...)) -> dict:
                     try:
                         os.unlink(tmp_path)
                     except Exception:
+                        # Failure to delete the temp file is not critical and can be safely ignored.
                         pass
         else:
             text = ""
