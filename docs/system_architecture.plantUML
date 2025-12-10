@@ -1,0 +1,166 @@
+@startuml Ghana_Gov_Chatbot_Architecture
+title Ghana Government Chatbot - RAG System Architecture (Clean Layout)
+
+!define FRONTEND #E0F7FA
+!define INGESTION #FFE0B2
+!define BACKEND #E8F5E9
+!define DATA #FFF3E0
+!define MODEL #F3E5F5
+
+skinparam rectangle {
+  BorderColor black
+  RoundCorner 12
+  FontSize 11
+}
+
+skinparam database {
+  BorderColor black
+  FontSize 11
+}
+
+'  LAYER 1: FRONTEND 
+package "Frontend Layer" FRONTEND {
+  rectangle "HTML/CSS UI" as UI {
+    component "English Chat\n(with history)" as ENG
+    component "Twi Chat\n(no history)" as TWI
+  }
+  
+  rectangle "Input Sources" as INPUT {
+    component "URL Input" as URL_IN
+    component "PDF Upload" as PDF_IN
+  }
+}
+
+'  LAYER 2: INGESTION 
+package "Ingestion Pipeline" INGESTION {
+  rectangle "Extraction" as EXTRACT {
+    component "Web Scraper" as SCRAPER
+    component "PDF Extractor" as PDF_EXT
+  }
+  
+  rectangle "Processing" as PROCESS {
+    component "Text Cleaning" as CLEAN
+    component "Chunking" as CHUNK
+    component "Embedding Gen" as EMBED_GEN
+    component "Metadata" as META
+  }
+}
+
+'  LAYER 3: DATA 
+package "Data Layer (Supabase)" DATA {
+  database "Supabase Database" as DB {
+    collections "Documents" as DB_DOCS
+    collections "Embeddings" as DB_EMBED
+    collections "Conversations\n(English Only)" as DB_CONV
+    collections "Messages\n(English Only)" as DB_MSG
+  }
+}
+
+'  LAYER 4: BACKEND (RAG) 
+package "Backend / RAG Pipeline" BACKEND {
+  rectangle "Query Processing" as QUERY_PROC {
+    component "1. Query Embed" as Q_EMBED
+    component "2. Vector Search" as V_SEARCH
+    component "3. Retrieve Top-k" as RETRIEVE
+  }
+  
+  rectangle "Response Assembly" as RESPONSE {
+    component "4. Reranking" as RERANK
+    component "5. Prompt Build" as PROMPT_BUILD
+    component "6. Context Inject" as INJECT
+  }
+}
+
+'  LAYER 5: LLM 
+package "LLM Layer" MODEL {
+  rectangle "Colab API\n(Llama 2 / Mistral)" as COLAB
+  rectangle "Local Model\n(TinyLlama)" as LOCAL
+}
+
+'  DATABASE NOTES 
+note bottom of DB_DOCS
+  • id (PK)
+  • source (url/pdf_name)
+  • title
+  • metadata
+  • inserted_at
+end note
+
+note bottom of DB_EMBED
+  • id (PK)
+  • document_id (FK)
+  • chunk_index
+  • chunk
+  • metadata
+  • embedding - VECTOR
+  • created_at
+end note
+
+note bottom of DB_CONV
+  • id (PK)
+  • title
+  • created_at
+  • last_active_at
+end note
+
+note bottom of DB_MSG
+  • id (PK)
+  • conversation_id (FK)
+  • prompt (user_query)
+  • answer (bot_response)
+  • context_chunks
+  • created_at
+end note
+
+
+
+'  CONNECTIONS: INGESTION FLOW 
+URL_IN --> SCRAPER
+PDF_IN --> PDF_EXT
+
+SCRAPER --> CLEAN
+PDF_EXT --> CLEAN
+
+CLEAN --> CHUNK
+CHUNK --> EMBED_GEN
+CHUNK --> META
+
+EMBED_GEN --> DB_EMBED : Store vectors
+META --> DB_DOCS : Store docs
+META --> DB_EMBED : Link chunks
+
+'  CONNECTIONS: QUERY FLOW 
+ENG --> Q_EMBED : User query
+TWI --> Q_EMBED : User query
+
+Q_EMBED --> V_SEARCH
+V_SEARCH --> DB_EMBED : Search vectors
+DB_EMBED --> RETRIEVE
+RETRIEVE --> DB_DOCS : Fetch sources
+DB_DOCS --> RERANK
+
+RERANK --> PROMPT_BUILD
+PROMPT_BUILD --> INJECT
+INJECT --> COLAB
+
+COLAB --> ENG : Response
+COLAB --> TWI : Response
+
+COLAB .down.> LOCAL : Fallback
+LOCAL .up.> ENG : Backup response
+LOCAL .up.> TWI : Backup response
+
+'  CONNECTIONS: HISTORY 
+ENG <--> DB_CONV : Save/Load history
+
+'  LEGEND 
+legend bottom
+  |= Color |= Layer |
+  | <back:FRONTEND>   </back> | Frontend |
+  | <back:INGESTION>   </back> | Ingestion |
+  | <back:DATA>   </back> | Data Storage |
+  | <back:BACKEND>   </back> | Backend/RAG |
+  | <back:MODEL>   </back> | LLM Layer |
+endlegend
+
+@enduml

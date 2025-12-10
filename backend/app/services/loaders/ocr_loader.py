@@ -6,7 +6,6 @@ Handles OCR extraction from scanned PDFs using pytesseract.
 import os
 import logging
 from typing import List, Optional
-from pathlib import Path
 
 import pytesseract
 from PIL import Image

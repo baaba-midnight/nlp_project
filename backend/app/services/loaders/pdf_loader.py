@@ -7,8 +7,7 @@ detects scanned vs native PDFs, and extracts text using PyPDF.
 import os
 import urllib.request
 import urllib.parse
-from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional
 import logging
 
 from langchain_community.document_loaders import PyPDFLoader

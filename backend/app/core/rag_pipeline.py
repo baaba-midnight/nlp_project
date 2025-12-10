@@ -1,122 +1,162 @@
 """
 Robust RAG Pipeline for Ghana Legal Chatbot
+Now supports Google Colab API with dynamic token limits!
 """
-from typing import Dict, List
-from app.core.retriever import Retriever
-from app.core.llm import Llama2LLM
-
+import numpy as np
+from ..core.retriever import DenseRetriever
+from ..core.llm import Llama2LLM
 
 
 class RAGPipeline:
-    def __init__(self, use_faiss=False, faiss_store=None, similarity_threshold: float = 0.65):
-        self.retriever = Retriever(use_faiss=use_faiss, faiss_store=faiss_store)
-        self.llm = Llama2LLM()
+    """
+    Two-stage architecture:
+    1. Retriever: Dense passage retrieval to find relevant documents
+    2. Reader/Generator: LLM generates answer conditioned on retrieved passages
+    """
+    
+    def __init__(self, similarity_threshold, embedder_model, language_model, 
+                 use_colab_api=False, colab_url=None):
+        """
+        Initialize RAG pipeline with retriever and generator.
+        
+        Args:
+            similarity_threshold: Minimum similarity for passage relevance
+            embedder_model: Model name for sentence embeddings
+            language_model: Model name for LLM generation
+            use_colab_api: If True, use Google Colab API (recommended!)
+            colab_url: Colab ngrok URL (required if use_colab_api=True)
+        """
         self.similarity_threshold = similarity_threshold
+        self.embedder_model = embedder_model
+        self.retriever = DenseRetriever(embedder_model, similarity_threshold)
+        
+        # Initialize LLM (local or Colab API)
+        self.llm = Llama2LLM(
+            language_model,
+            use_colab_api=use_colab_api,
+            colab_url=colab_url
+        )
 
-    def filter_relevant_chunks(self, chunks: List[Dict]):
+   
+    def build_rag_prompt(self, query, passages, max_input_length):
         """
-        Filter retrieved chunks by embedding similarity.
-        Ensures similarity is converted to float even if Supabase returns it as a string.
+        Construct RAG prompt with retrieved passages.
+        Args:
+            query: User's question
+            passages: List of retrieved passages with metadata
+            max_input_length: Maximum tokens for input prompt
+
+        Returns:
+            Formatted prompt string for LLM
         """
-        cleaned = []
+        # Build the template without passages first
+        template = f"""You are a knowledgeable Ghana Legal and Climate Assistant. Your task is to answer questions accurately based ONLY on the provided legal documents.
 
-        for c in chunks:
-            sim_raw = c.get("similarity", 0.0)
-            similarity = float(sim_raw)
+RETRIEVED LEGAL PASSAGES:
+{{passages}}
 
-            c["similarity"] = similarity   
-            cleaned.append(c)
-
-        # Now filter correctly
-        relevant = [c for c in cleaned if c["similarity"] >= self.similarity_threshold]
-
-        # Sort descending by similarity
-        relevant_sorted = sorted(relevant, key=lambda x: x["similarity"], reverse=True)
-
-        return relevant_sorted
-
-
-    def build_prompt(self, query: str, contexts: List[Dict], max_tokens: int = 2000) -> str:
-        """
-        Construct the prompt for the LLM.
-        Ensures chunks fit within token limits (simplified truncation here).
-        """
-        context_text = ""
-        total_tokens = 0
-
-        for idx, c in enumerate(contexts):
-            chunk_text = c.get("chunk", "")
-            # Simplified token count: 1 token ~ 1 word (approximation)
-            chunk_tokens = len(chunk_text.split())
-            if total_tokens + chunk_tokens > max_tokens:
-                break
-            context_text += f"\nChunk {idx+1}:\n{chunk_text}\n"
-            total_tokens += chunk_tokens
-
-        prompt = f"""You are a Ghana Legal Assistant. ONLY answer based on the CONTEXT below.
-
-CRITICAL RULES:
-1. Use ONLY the information in the context.
-2. Do NOT use knowledge outside the context.
-3. If answer is not in context, respond: "I cannot answer this question based on the provided documents."
-4. Cite chunks where appropriate.
-
-CONTEXT:
-{context_text}
+Based on these texts, answer the question below.
 
 QUESTION: {query}
 
-FINAL ANSWER:"""
+ANSWER:"""
+        
+        # Count tokens for everything EXCEPT passages
+        template_without_passages = template.replace("{passages}", "")
+        overhead_tokens = len(self.llm.tokenizer.encode(template_without_passages))
+        
+        # Calculate how much space is LEFT for passages
+        max_context_tokens = max_input_length - overhead_tokens
+        
+        # Now add passages up to this calculated limit
+        context_parts = []
+        total_tokens = 0
+        
+        for idx, passage in enumerate(passages, 1):
+            chunk_text = passage.get("chunk", "")
+            if not chunk_text:
+                continue
+            
+            chunk_tokens = len(self.llm.tokenizer.encode(chunk_text))
+            
+            if total_tokens + chunk_tokens > max_context_tokens:
+                print(f"Stopping at passage {idx} to stay within token limit")
+                break
+            
+            source = passage.get("document_title", "Unknown Document")
+            context_parts.append(f"[Passage {idx} - Source: {source}]\n{chunk_text}")
+            total_tokens += chunk_tokens
+        
+        context_text = "\n\n".join(context_parts)
+        prompt = template.replace("{passages}", context_text)
+        
         return prompt
 
+    
     def run(self, query, k):
-        # Step 1: Embed + retrieve top K chunks
-        chunks = self.retriever.retrieve(query, k*2) 
-        if not chunks:
+        """
+        Execute complete RAG pipeline: retrieve then generate.
+        
+        Args:
+            query: User's question
+            k: Number of passages to retrieve            
+        Returns:
+            Dict containing answer, sources, has_chunks, and metadata
+        """
+        # Use model's dynamic limits 
+        max_input_length = self.llm.get_max_input_length()        
+        
+        # Handle empty or invalid queries
+        if not query or not query.strip():
             return {
-                "answer": "I couldn't find any relevant documents in the database.",
+                "answer": "",
+                "num_sources": 0,
                 "sources": [],
-                "error": "no_results"
+                "has_chunks":  False,
+                "avg_similarity": 0.0
             }
-
-        # Step 2: Filter by similarity (requires chunks to include similarity score)
-        filtered_chunks = self.filter_relevant_chunks(chunks)
-
-        if not filtered_chunks:
+        # Handle invalid k
+        if k <= 0:
+            print("Invalid value of k provided to RAG pipeline.")
             return {
-                "answer": f"I don't have information about '{query}' in my database.",
-                "sources": chunks,
-                "error": "irrelevant_context"
+                "answer": "",
+                "num_sources": 0,
+                "sources": [],
+                "has_chunks": False,
+                "avg_similarity": 0.0
             }
+        # Stage 1: RETRIEVER
+        passages = self.retriever.retrieve(query, k)
+        
+        # Fallback on model only if no passages found
+        if not passages:
+            print('Falling back on LLM-only response due to no retrieved passages.')
+            fallback_prompt = f"""You are a knowledgeable Ghana Legal and Climate Assistant. 
+No specific legal documents were found for this query, but please provide a helpful general answer based on your knowledge of Ghana law.
 
-        # Step 3: Build prompt
-        prompt = self.build_prompt(query, filtered_chunks)
+QUESTION: {query}
 
-        # Step 4: Generate answer
-        raw_output = self.llm.generate(prompt, max_new_tokens=300)
-
-        # Step 5: Extract final answer
-        if "FINAL ANSWER:" in raw_output:
-            answer = raw_output.split("FINAL ANSWER:")[-1].strip()
-        else:
-            answer = raw_output.strip()
-
-        # Step 6: Detect uncertainty
-        uncertainty_phrases = [
-            "i cannot answer",
-            "i don't have",
-            "not in the context",
-            "cannot find",
-            "not provided",
-            "no information"
-        ]
-        warning = None
-        if any(phrase in answer.lower() for phrase in uncertainty_phrases):
-            warning = "llm_uncertain"
-
-        # Step 7: Return structured response
-        return {
-            "answer": answer,
-            "sources": filtered_chunks,
-            "warning": warning
+ANSWER:"""
+            raw_answer = self.llm.generate(fallback_prompt)
+            return {
+                "answer": raw_answer,
+                "num_sources": 0,
+                "sources": [],
+                "has_chunks": False,
+                "avg_similarity": 0.0
+            }
+        
+        # Stage 2: READER/GENERATOR (RAG)
+        rag_prompt = self.build_rag_prompt(query, passages, max_input_length)
+        
+        raw_answer = self.llm.generate(rag_prompt)
+        
+        # Prepare response
+        response = {
+            "answer": raw_answer,
+            "sources": passages,
+            "has_chunks": True,
+            "num_sources": len(passages),
+            "avg_similarity": np.mean([p["similarity"] for p in passages])
         }
+        return response
