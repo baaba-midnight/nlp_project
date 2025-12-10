@@ -1,436 +1,196 @@
-# 🧩 **Ghana Legal RAG Chatbot — Backend Architecture & Methodology**
+# 🧩 Ghana Legal RAG Chatbot
 
-*Complete Technical Documentation*
+A production-ready retrieval-augmented generation (RAG) system for answering questions about Ghanaian legal documents using vector search and LLMs.
 
----
-
-## #️⃣ **1. Introduction**
-
-This document describes the backend architecture, data pipeline, database design, and retrieval-augmented generation (RAG) workflow used to build a **Ghana Government Legal Chatbot**.
-The chatbot answers questions using:
-
-* Acts of Parliament
-* Regulations
-* Court Judgments
-* Climate Sustainability Reports
-* Other government PDFs
-
-The system is built using:
-
-* **FastAPI** as the backend
-* **LangChain** for document loading, chunking, and pipeline orchestration
-* **SentenceTransformers (MPNet)** for embeddings
-* **PostgreSQL + pgvector** for vector search
-* **FAISS** (optional fallback)
-* **uv** environment
-* **OCR** for scanned PDFs
+**Backend:** FastAPI + PostgreSQL + pgvector  
+**Frontend:** Vanilla HTML/CSS/JavaScript  
 
 ---
 
-## #️⃣ **2. High-Level System Architecture**
+## Prerequisites
 
-The system follows a **four-layer architecture**:
+### Install uv (Python Package Manager)
 
-```
-┌─────────────────────┐
-│ 1. Data Layer       │ (PDFs: acts, judgments, regulations)
-└─────────┬───────────┘
-          │
-┌─────────────────────┐
-│ 2. Ingestion Layer  │ (PDF → text → clean → chunk → embed → DB)
-└─────────┬───────────┘
-          │
-┌─────────────────────────────┐
-│ 3. RAG Core Layer           │ (Retriever + LLM)
-│  - Query embedding          │
-│  - Vector search (pgvector) │
-│  - Prompt construction      │
-│  - LLM answer               │
-└─────────┬───────────────────┘
-          │
-┌───────────────────────┐
-│ 4. API Layer (FastAPI)│
-│  - /rag/ask           │
-│  - /embed/upload_pdf  │
-│  - /health            │
-└───────────────────────┘
+**Windows (PowerShell):**
+
+```powershell
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-This structure matches the requirements for:
-
-* Fit for purpose
-* Extensibility
-* Climate questions
-* Demonstration of technical ability
-* Clear evaluation
-
-(From project brief) 
-
----
-
-## #️⃣ **3. Project Folder Structure**
-
-```
-law_rag_backend/
-│
-├── app/
-│   ├── main.py
-│   ├── config.py
-│   ├── deps.py
-│   │
-│   ├── api/
-│   │   ├── rag_routes.py
-│   │   ├── embed_routes.py
-│   │   ├── health.py
-│   │
-│   ├── core/
-│   │   ├── rag_pipeline.py
-│   │   ├── retriever.py
-│   │   ├── embedder.py
-│   │   ├── vector_store.py
-│   │
-│   ├── services/
-│   │   ├── pdf_loader.py
-│   │   ├── chunker.py
-│   │   ├── ingestion.py
-│   │   ├── ocr_loader.py
-│   │
-│   ├── models/
-│   │   ├── schemas.py
-│   │
-│   ├── utils/
-│       ├── text_cleaner.py
-│       ├── logging.py
-│
-├── vector_db/
-├── data/
-│   ├── acts/
-│   ├── regulations/
-│   ├── judgments/
-│   ├── climate/
-│
-├── .env
-└── README.md
-```
-
----
-
-## #️⃣ **4. Data Collection**
-
-### **Sources**
-
-The dataset includes:
-
-1. **Acts of Parliament**
-2. **Regulations (LIs)**
-3. **Supreme Court & Court of Appeal Judgments**
-4. **Climate sustainability publications**
-5. **Legal PDFs from government portals**
-
-These documents are stored under:
-
-```
-data/acts/
-data/regulations/
-data/judgments/
-data/climate/
-```
-
-### **Why PDFs?**
-
-* authoritative
-* consistent formatting
-* easy to parse
-* required by project brief (government PDFs) 
-
----
-
-## #️⃣ **5. Data Preprocessing Pipeline**
-
-### **5.1 PDF → Text Extraction**
-
-Two paths:
-
-#### (A) Normal PDF
-
-Using PyPDFLoader:
-
-```python
-loader = PyPDFLoader("companies_act.pdf")
-docs = loader.load()
-```
-
-#### (B) Scanned PDF
-
-Use OCR:
-
-```python
-pytesseract.image_to_string(image)
-```
-
-This enables extraction from older judgments & photocopies.
-
----
-
-### **5.2 Text Cleaning**
-
-Remove:
-
-* headers
-* footers
-* page numbers
-* watermarks
-
-A regex-based cleaner is applied before chunking.
-
----
-
-### **5.3 Chunking**
-
-Legal documents need **big chunks** to preserve context.
-
-```
-chunk_size = 1000 tokens
-chunk_overlap = 150 tokens
-```
-
-We use LangChain’s `RecursiveCharacterTextSplitter`.
-
----
-
-### **5.4 Embedding Model**
-
-We use:
-
-### ⭐ `sentence-transformers/all-mpnet-base-v2`
-
-Because:
-
-* high accuracy
-* strong legal semantic matching
-* excellent on long passages
-* significantly better than MiniLM for law
-
----
-
-### **5.5 Embedding Storage**
-
-Every chunk produces:
-
-* chunk text
-* 768-dim embedding
-* metadata (page number, act title, source PDF)
-
-These are stored in:
-
-### ⬢ PostgreSQL + pgvector
-
-**or**
-FAISS (local development)
-
----
-
-## #️⃣ **6. Database Design (PostgreSQL + pgvector)**
-
-### 6.1 Install pgvector
-
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-```
-
----
-
-### **6.2 Documents Table**
-
-```sql
-CREATE TABLE documents (
-    id SERIAL PRIMARY KEY,
-    title TEXT,
-    section TEXT,
-    page INT,
-    content TEXT NOT NULL,
-    pdf_source TEXT,
-    category TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
----
-
-### **6.3 Embeddings Table**
-
-```sql
-CREATE TABLE embeddings (
-    id SERIAL PRIMARY KEY,
-    document_id INT REFERENCES documents(id),
-    chunk TEXT NOT NULL,
-    embedding VECTOR(768),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
----
-
-### **6.4 Interactions Table**
-
-(For user queries — helps with evaluation)
-
-```sql
-CREATE TABLE interactions (
-    id SERIAL PRIMARY KEY,
-    user_query TEXT,
-    retrieved_chunks TEXT,
-    answer TEXT,
-    timestamp TIMESTAMP DEFAULT NOW()
-);
-```
-
----
-
-## #️⃣ **7. Retrieval-Augmented Generation (RAG) Pipeline**
-
-### **7.1 Query Processing**
-
-* Embed user query with MPNet
-* Run similarity search on pgvector
-
-### **7.2 Retrieval**
-
-Top-k chunks (k=3–5) are selected.
-
-### **7.3 Prompt Construction**
-
-We use a *context-injection* prompt:
-
-```
-Use ONLY the context below to answer.
-
-<context>
-...
-</context>
-
-Question: {user_query}
-```
-
-### **7.4 Generation**
-
-OpenAI or any LLM is used to generate the answer.
-
-### **7.5 Output**
-
-* answer
-* optional sources
-* optional top chunks
-
----
-
-## #️⃣ **8. FastAPI Backend**
-
-### **Endpoints**
-
-#### **8.1 /rag/ask**
-
-Handles questions:
-
-```json
-POST /rag/ask
-{
-  "query": "What does the Companies Act say about auditor responsibilities?"
-}
-```
-
-Response:
-
-```json
-{
-  "answer": "...",
-  "sources": [...]
-}
-```
-
----
-
-#### **8.2 /embed/upload_pdf**
-
-Add new PDFs → ingestion pipeline → database updated.
-This proves **extensibility**, which is required. 
-
----
-
-#### **8.3 /health**
-
-Service check.
-
----
-
-## #️⃣ **9. Tools & Environment Setup (uv)**
-
-### Create environment
+**macOS/Linux:**
 
 ```bash
-uv venv
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-### Install packages
+**Alternative (using pip):**
 
 ```bash
-uv add fastapi uvicorn langchain langchain-community
-uv add sentence-transformers faiss-cpu openai
-uv add pypdf beautifulsoup4 lxml python-multipart
-uv add psycopg2-binary
-uv add unstructured pytesseract pillow
-uv add python-dotenv
+pip install uv
 ```
 
-### Run server
+---
+
+## Quick Start
+
+### Backend Setup
+
+1. **Navigate to backend**
+  
+   ```bash
+   cd backend
+   ```
+
+2. **Create environment** (using `uv`)
+
+   ```bash
+   uv venv
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   ```
+
+3. **Install dependencies**
+
+   ```bash
+   cd backend
+   uv pip install -r requirements.txt
+   ```
+
+4. **Configure .env**
+
+   ```bash
+   # backend/.env
+   DATABASE_URL=postgresql://user:password@localhost:5432/ghana_rag
+   OPENAI_API_KEY=sk-...
+   VECTOR_STORE=pgvector  # or 'faiss' for development
+   ```
+
+5. **Start server**
+
+   ```bash
+   uv run uvicorn app.main:app --reload --port 8000
+   ```
+
+   ✅ Server running: `http://localhost:8000/docs`
+
+---
+
+### Frontend Setup
+
+1. **Update API URL** (if needed)
+
+   ```javascript
+   // frontend/app.js
+   const API_BASE_URL = 'http://localhost:8000'; // Change if backend port differs
+   ```
+
+2. **Serve frontend** (keep backend running in another terminal)
+
+   ```bash
+   cd frontend
+   python -m http.server 8080
+   ```
+
+3. **Open browser**
+
+   ```bash
+   http://localhost:8080
+   ```
+
+---
+
+## 📁 Project Structure
+
+```
+nlp_project/
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── routes/
+│   │   │   ├── upload.py       (URL & file ingestion)
+│   │   │   └── rag_ask.py          (Query endpoint)
+│   │   │   └── conversations.py          (Conversation and Message Endpoint)
+│   │   │   └── translate.py          (Translate English-to-Twi endpoint)
+│   │   │   └── upload.py          (Upload endpoint)
+│   │   ├── services/
+│   │   │   ├── loaders/        (PDF, OCR, Hybrid)
+│   │   │   ├── scrapers/       (Web scraper)
+│   │   │   └── ingestor.py     (Chunking & embedding)
+│   │   └── core/               (RAG pipeline, retriever)
+│   └── .env
+│
+├── frontend/
+│   ├── index.html
+│   ├── app.js
+│   └── styles.css
+│
+└── data/                       (Sample PDFs)
+```
+
+---
+
+## 🔧 Key Features
+
+| Feature | Details |
+|---------|---------|
+| **Multiple Ingestion** | Upload PDFs, scrape URLs, detect URLs in text files |
+| **Scanned PDFs** | Hybrid loader falls back to Tesseract OCR |
+| **Vector Search** | PostgreSQL + pgvector for semantic similarity |
+| **Domain Optimized** | MPNet embeddings trained on legal/technical text |
+| **RAG Pipeline** | Retrieval → Context assembly → LLM generation |
+| **Extensible** | Add new documents dynamically without retraining |
+
+---
+
+## 🛠 Configuration
+
+### Backend (.env)
+
+Setup the following enviornment variables before activating the backend
 
 ```bash
-uv run uvicorn app.main:app --reload
+user= 
+password=
+host=
+port=5432
+dbname=postgres
+supabase_url=
+supabase_key=
+colab_url = 
+```
+
+### Frontend (app.js)
+
+```javascript
+const API_BASE_URL = 'http://localhost:8000';
+const CHUNK_SIZE_MB = 10;
 ```
 
 ---
 
-## #️⃣ **10. Evaluation Strategy**
+### Troubleshooting
 
-### **10.1 Accuracy Testing**
-
-Ask:
-
-* legal questions
-* climate questions
-* procedural questions
-* definition questions
-
-Validate against source PDFs.
+| Issue | Solution |
+|-------|----------|
+| **Port 8000 in use** | Change port: `uvicorn app.main:app --port 8001` + update `API_BASE_URL` |
+| **Connection refused** | Verify backend is running at `http://localhost:8000/docs` |
+| **CORS errors** | Use local server (`python -m http.server`), not `file://` |
+| **DB connection failed** | Check `DATABASE_URL` in `.env` and PostgreSQL is running |
+| **OCR not working** | Install Tesseract: `brew install tesseract` (Mac) or `apt install tesseract-ocr` (Linux) |
 
 ---
 
-### **10.2 Extensibility Test**
+## 📚 Technical Stack
 
-Upload a *new Act* during demo → system re-indexes → chatbot can use it.
-
----
-
-### **10.3 Performance**
-
-Measure:
-
-* retrieval time
-* embedding time
-* DB query latency
+- **Framework:** FastAPI + Uvicorn
+- **Database:** PostgreSQL + pgvector (supabase)
+- **Embeddings:** sentence-transformers/all-mpnet-base-v2
+- **LLM:** OpenAI GPT (configurable)
+- **PDF Processing:** pypdf + Tesseract OCR
+- **Web Scraping:** BeautifulSoup4 + requests
+- **Frontend:** Vanilla JS (no frameworks)
 
 ---
 
-## #️⃣ **11. Conclusion**
+## 📖 Architecture Overview
 
-This backend architecture provides:
-
-* a robust Ghana-focused RAG system
-* vector search that scales
-* a clean ingestion pipeline
-* extensibility (required by the project)
-* ability to answer legal + climate questions
-* a professional FastAPI backend
-* OCR support for older government documents
-
-This structure is fully defendable in an interview and aligns directly with the project’s evaluation criteria.
+**See:** [`docs/ARCHITECTURE.md`](./docs/system_architecture.plantUML)
