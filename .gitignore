@@ -1,7 +1,22 @@
-.venv/
+# Python artifacts
 __pycache__/
 *.pyc
+
+# Virtualenvs
+.venv/
+.venv*/
+
+# Env files
 .env
+
+# VSCode
 .vscode/
+
+# Local downloads / temp
+downloads/
+tmp/
+*.log
+
+# Optional OS files
 .DS_Store
-node_modules/
+Thumbs.db

@@ -27,6 +27,7 @@ dependencies = [
     "python-multipart>=0.0.20",
     "sentence-transformers>=5.1.2",
     "setuptools>=80.9.0",
+    "streamlit>=1.51.0",
     "supabase>=2.24.0",
     "unstructured>=0.18.20",
     "uvicorn>=0.38.0",
