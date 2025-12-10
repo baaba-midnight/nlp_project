@@ -6,10 +6,8 @@ from .vector_store import PgVectorStore
    
 class DenseRetriever:
     """
-    Dense passage retrieval using bi-encoder architecture (Section 14.2)
-    Encodes queries and documents separately using BERT-based models.
-    """
-    
+    Dense passage retriever using sentence embeddings and vector store.
+    """   
     def __init__(self, embedder_model, similarity_threshold):
         """
         Initialize dense retriever with embedding model and vector store.

@@ -25,7 +25,6 @@ load_dotenv()
 # Get colab_url from environment, default to None
 colab_url = os.getenv("colab_url")
 print(f"colab_url from env: {colab_url}")   
-# colab_url = os.getenv("colab_url")
 use_colab_api = colab_url is not None and colab_url.strip() != ""
 
 # If colab_url is not set, use local model instead

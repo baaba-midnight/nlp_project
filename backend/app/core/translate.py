@@ -54,16 +54,3 @@ class GhanaianTranslator:
         )[0]
 
         return translation
-
-# Usage
-# translator = GhanaianTranslator()
-
-# Twi to English
-# twi_text = "Ghana wɔ hen fa?"
-# english = translator.translate_to_english(twi_text, source_lang='twi')
-# print(f"English: {english}")
-
-# English to Twi
-# english_text = "What is the inflation rate?"
-# twi = translator.translate_from_english(english_text, target_lang='twi')
-# print(f"Twi: {twi}")

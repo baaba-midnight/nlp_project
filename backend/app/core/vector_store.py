@@ -8,7 +8,6 @@ from ..db import supabase
 class PgVectorStore:
     """
     Vector store using Supabase pgvector for dense passage retrieval.
-    Stores document embeddings and performs similarity search.
     """
     
     def __init__(self):

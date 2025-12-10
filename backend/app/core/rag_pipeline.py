@@ -50,7 +50,7 @@ class RAGPipeline:
             Formatted prompt string for LLM
         """
         # Build the template without passages first
-        template = f"""You are a knowledgeable Ghana Legal Assistant. Your task is to answer questions accurately based ONLY on the provided legal documents.
+        template = f"""You are a knowledgeable Ghana Legal and Climate Assistant. Your task is to answer questions accurately based ONLY on the provided legal documents.
 
 RETRIEVED LEGAL PASSAGES:
 {{passages}}
@@ -99,24 +99,14 @@ ANSWER:"""
         
         Args:
             query: User's question
-            k: Number of passages to retrieve
-            max_input_length: Maximum tokens for input prompt (if None, uses model default)
-            max_new_tokens: Maximum tokens to generate in answer (if None, uses model default)
-            
+            k: Number of passages to retrieve            
         Returns:
             Dict containing answer, sources, has_chunks, and metadata
         """
         # Use model's dynamic limits 
-        max_input_length = self.llm.get_max_input_length()
-        print(f"Using model's max input length: {max_input_length}")
+        max_input_length = self.llm.get_max_input_length()        
         
-        max_new_tokens = self.llm.get_max_output_length()
-        print(f"Using model's max output length: {max_new_tokens}")
-        
-        # Cap to model's limits
-        max_input_length = min(max_input_length, self.llm.get_max_input_length())
-        max_new_tokens = min(max_new_tokens, self.llm.get_max_output_length())
-        
+        # Handle empty or invalid queries
         if not query or not query.strip():
             return {
                 "answer": "",
@@ -125,7 +115,7 @@ ANSWER:"""
                 "has_chunks":  False,
                 "avg_similarity": 0.0
             }
-        
+        # Handle invalid k
         if k <= 0:
             print("Invalid value of k provided to RAG pipeline.")
             return {
@@ -135,18 +125,19 @@ ANSWER:"""
                 "has_chunks": False,
                 "avg_similarity": 0.0
             }
-        # Stage 1: RETRIEVAL
+        # Stage 1: RETRIEVER
         passages = self.retriever.retrieve(query, k)
         
+        # Fallback on model only if no passages found
         if not passages:
             print('Falling back on LLM-only response due to no retrieved passages.')
-            fallback_prompt = f"""You are a knowledgeable Ghana Legal Assistant. 
+            fallback_prompt = f"""You are a knowledgeable Ghana Legal and Climate Assistant. 
 No specific legal documents were found for this query, but please provide a helpful general answer based on your knowledge of Ghana law.
 
 QUESTION: {query}
 
 ANSWER:"""
-            raw_answer = self.llm.generate(fallback_prompt, max_new_tokens)
+            raw_answer = self.llm.generate(fallback_prompt)
             return {
                 "answer": raw_answer,
                 "num_sources": 0,
@@ -158,7 +149,7 @@ ANSWER:"""
         # Stage 2: READER/GENERATOR (RAG)
         rag_prompt = self.build_rag_prompt(query, passages, max_input_length)
         
-        raw_answer = self.llm.generate(rag_prompt, max_new_tokens)
+        raw_answer = self.llm.generate(rag_prompt)
         
         # Prepare response
         response = {
