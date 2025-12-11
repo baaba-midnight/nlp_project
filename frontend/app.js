@@ -24,7 +24,8 @@ const translations = {
         chatsTitle: "Chats",
         newChat: "New Chat",
         deleteChat: "Delete chat",
-        noChats: "No chats yet. Create a new chat to get started."
+        noChats: "No chats yet. Create a new chat to get started.",
+        processingDocument: "📄 Processing uploaded document..."
     },
     twi: {
         headerTitle: "Ghana Nnwontofo",
@@ -47,7 +48,8 @@ const translations = {
         chatsTitle: "Nkɔmmo",
         newChat: "Nkɔmmo Foforo",
         deleteChat: "Pepre nkɔmmo",
-        noChats: "Wonni nkɔmmo biara. Bɔ nkɔmmo foforo bi ase sɛ wopɛ sɛ wohyɛ ase."
+        noChats: "Wonni nkɔmmo biara. Bɔ nkɔmmo foforo bi ase sɛ wopɛ sɛ wohyɛ ase.",
+        processingDocument: "📄 Wɔregyae fail no kyerɛkyerɛ..."
     }
 };
 
@@ -147,7 +149,8 @@ async function initializeMultiChat() {
                 uploadedFiles: [],
                 conversationId: c.id,
                 createdAt: c.created_at,
-                updatedAt: c.last_active_at || c.created_at
+                updatedAt: c.last_active_at || c.created_at,
+                isNew: false  // Mark as loaded from database, not a new chat
             }));
             saveChats();
         } else {
@@ -676,17 +679,29 @@ function handleFileSelection(event) {
 }
 
 async function handleFileUpload(file) {
+    let loadingMessageId = null;
     try {
         showSuccess(`Uploading ${file.name}...`);
+        
+        // Display processing message with loading spinner
+        const processingMessage = translations[state.language].processingDocument;
+        loadingMessageId = addMessage('bot', '<span class="loading"></span> ' + processingMessage, true);
         
         // Mark file as uploading
         const fileEntry = state.uploadedFiles.find(f => f.name === file.name);
         if (fileEntry) {
             fileEntry.uploading = true;
+            fileEntry.error = false;
+            fileEntry.errorMessage = null;
             renderUploadedFiles();
         }
         
         const result = await uploadFile(file);
+
+        // Remove the loading message after successful upload
+        if (loadingMessageId) {
+            removeMessage(loadingMessageId);
+        }
 
         // Update metadata and mark as complete
         if (fileEntry) {
@@ -697,31 +712,50 @@ async function handleFileUpload(file) {
         renderUploadedFiles();
         showSuccess(`Successfully uploaded ${file.name}`);
     } catch (error) {
-        showError(`Failed to upload ${file.name}: ${error.message}`);
+        // Remove the loading message on error - use the stored ID
+        if (loadingMessageId) {
+            removeMessage(loadingMessageId);
+        }
+        
+        showError(`Failed to upload ${file.name}`, error.message);
         // Mark as failed
         const fileEntry = state.uploadedFiles.find(f => f.name === file.name);
         if (fileEntry) {
             fileEntry.uploading = false;
             fileEntry.error = true;
+            fileEntry.errorMessage = error.message;
         }
+        renderUploadedFiles();
         throw error;
     }
 }
 
 async function handleUrlUpload(url) {
+    let loadingMessageId = null;
     try {
         showSuccess(`Processing URL: ${url}...`);
+        
+        // Display processing message with loading spinner
+        const processingMessage = translations[state.language].processingDocument;
+        loadingMessageId = addMessage('bot', '<span class="loading"></span> ' + processingMessage, true);
         
         // Add URL with uploading flag
         state.uploadedFiles.push({
             name: url,
             type: 'url',
             metadata: null,
-            uploading: true
+            uploading: true,
+            error: false,
+            errorMessage: null
         });
         renderUploadedFiles();
         
         const result = await uploadUrl(url);
+
+        // Remove the loading message after successful upload
+        if (loadingMessageId) {
+            removeMessage(loadingMessageId);
+        }
 
         // Update metadata
         const fileEntry = state.uploadedFiles.find(f => f.name === url);
@@ -733,13 +767,20 @@ async function handleUrlUpload(url) {
         renderUploadedFiles();
         showSuccess(`Successfully processed URL: ${url}`);
     } catch (error) {
-        showError(`Failed to process URL: ${error.message}`);
+        // Remove the loading message on error - use the stored ID
+        if (loadingMessageId) {
+            removeMessage(loadingMessageId);
+        }
+        
+        showError(`Failed to process URL`, error.message);
         // Mark as failed
         const fileEntry = state.uploadedFiles.find(f => f.name === url);
         if (fileEntry) {
             fileEntry.uploading = false;
             fileEntry.error = true;
+            fileEntry.errorMessage = error.message;
         }
+        renderUploadedFiles();
         throw error;
     }
 }
@@ -834,7 +875,8 @@ async function createNewChat() {
         uploadedFiles: [],
         conversationId: null, // no backend convo yet
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        isNew: true  // Mark this as a newly created chat eligible for auto-naming
     };
     
     state.chats.push(newChat);
@@ -961,13 +1003,14 @@ function saveCurrentChat() {
         chat.conversationId = chat.conversationId || state.conversationId || null;
         chat.updatedAt = new Date().toISOString();
         
-        // Update title from first user message if available
+        // Update title from first user message ONLY if this is a new chat (not loaded from database)
         // Use chat.messages (the persisted chat messages) instead of state.messages
         const firstUserMessage = (chat.messages || []).find(m => m.role === 'user');
-        if (firstUserMessage && (chat.title === 'New Chat' || !chat.title)) {
+        if (chat.isNew && firstUserMessage && (chat.title === 'New Chat' || !chat.title)) {
             // Assign title from the first user message and persist the chat now
             const title = firstUserMessage.content.trim();
             chat.title = title.length > 30 ? title.substring(0, 30) + '...' : title;
+            chat.isNew = false;  // Mark as no longer new after first message
             // Re-render chat list to show updated title
             renderChatList();
             // Persist chats only when a title has been created from the first prompt
@@ -1252,9 +1295,10 @@ function renderUploadedFiles() {
     filesList.innerHTML = '';
     state.uploadedFiles.forEach((file, index) => {
         const li = document.createElement('li');
-        li.className = 'file-item';
+        li.className = `file-item ${file.error ? 'file-error' : ''}`;
         
         const nameSpan = document.createElement('span');
+        nameSpan.className = 'file-name';
         nameSpan.textContent = file.name;
         li.appendChild(nameSpan);
         
@@ -1267,8 +1311,16 @@ function renderUploadedFiles() {
         } else if (file.error) {
             const errorIcon = document.createElement('span');
             errorIcon.className = 'upload-error';
-            errorIcon.textContent = '⚠️';
+            errorIcon.textContent = '✕';
             li.appendChild(errorIcon);
+            
+            // Add error message tooltip
+            if (file.errorMessage) {
+                const errorTooltip = document.createElement('span');
+                errorTooltip.className = 'error-tooltip';
+                errorTooltip.textContent = file.errorMessage;
+                li.appendChild(errorTooltip);
+            }
         } else {
             const checkIcon = document.createElement('span');
             checkIcon.className = 'upload-success';
@@ -1294,12 +1346,39 @@ function removeFile(index) {
     showSuccess('File removed');
 }
 
-function showError(message) {
+function showError(title, message = '') {
     const errorDiv = document.createElement('div');
     errorDiv.className = 'error-message';
-    errorDiv.textContent = message;
+    
+    // Create error container with icon
+    const errorContent = document.createElement('div');
+    errorContent.className = 'error-content';
+    
+    const errorIcon = document.createElement('span');
+    errorIcon.className = 'error-icon';
+    errorIcon.textContent = '✕';
+    errorContent.appendChild(errorIcon);
+    
+    // Create text container
+    const errorText = document.createElement('div');
+    errorText.className = 'error-text';
+    
+    const titleEl = document.createElement('strong');
+    titleEl.textContent = title;
+    errorText.appendChild(titleEl);
+    
+    if (message) {
+        const messageEl = document.createElement('p');
+        messageEl.className = 'error-details';
+        messageEl.textContent = message;
+        errorText.appendChild(messageEl);
+    }
+    
+    errorContent.appendChild(errorText);
+    errorDiv.appendChild(errorContent);
+    
     messagesContainer.appendChild(errorDiv);
-    setTimeout(() => errorDiv.remove(), 5000);
+    setTimeout(() => errorDiv.remove(), 6000);
 }
 
 function showSuccess(message) {
